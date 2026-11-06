@@ -1,422 +1,123 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Game Bắn Súng</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-      -webkit-user-select: none;
-      touch-action: none;
-    }
-    body, html {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background-color: #1a1a1a;
-      font-family: Arial, sans-serif;
-    }
-    canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-      cursor: crosshair;
-    }
-    #ui {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      color: white;
-      font-weight: bold;
-      font-size: 14px;
-      text-shadow: 1px 1px 2px black;
-      pointer-events: none;
-      z-index: 5;
-    }
-    #deviceModal {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.85);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 10;
-      color: white;
-    }
-    #deviceModal h2 {
-      margin-bottom: 20px;
-      font-size: 22px;
-      text-align: center;
-    }
-    .btn-container {
-      display: flex;
-      gap: 15px;
-    }
-    .device-btn {
-      padding: 12px 24px;
-      font-size: 16px;
-      font-weight: bold;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: transform 0.1s, background-color 0.2s;
-    }
-    .device-btn:active {
-      transform: scale(0.95);
-    }
-    #btnMobile {
-      background-color: #2196f3;
-      color: white;
-    }
-    #btnPC {
-      background-color: #4caf50;
-      color: white;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini-Multi Shooter Game</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #111;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            background-color: #222;
+            border: 2px solid #555;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+    </style>
 </head>
 <body>
-  <div id="deviceModal">
-    <h2>Bạn đang chơi trên thiết bị nào?</h2>
-    <div class="btn-container">
-      <button id="btnMobile" class="device-btn">📱 Điện thoại</button>
-      <button id="btnPC" class="device-btn">💻 Máy tính</button>
-    </div>
-  </div>
 
-  <div id="ui">
-    <div>Máu: <span id="hp">100</span></div>
-    <div>Điểm: <span id="score">0</span></div>
-    <div>Chế độ: <span id="mode">Chưa chọn</span></div>
-  </div>
-  <canvas id="gameCanvas"></canvas>
+    <h1>Mini-Multi Shooter 🎮</h1>
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
 
-  <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+    <!-- Thư viện Socket.io client -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+        // Thông tin người chơi của mình
+        let myPosition = { x: 100, y: 100 };
+        let otherPlayers = {};
+        let bullets = [];
 
-    let selectedMode = null;
-    let isGameRunning = false;
-
-    document.getElementById('btnMobile').addEventListener('click', function() {
-      selectDevice('mobile');
-    });
-    document.getElementById('btnPC').addEventListener('click', function() {
-      selectDevice('pc');
-    });
-
-    function selectDevice(mode) {
-      selectedMode = mode;
-      document.getElementById('deviceModal').style.display = 'none';
-      document.getElementById('mode').innerText = mode === 'mobile' ? 'Cảm ứng' : 'Phím & Chuột';
-      
-      if (!isGameRunning) {
-        isGameRunning = true;
-        loop();
-      }
-    }
-
-    const player = {
-      x: canvas.width / 2,
-      y: canvas.height / 2,
-      radius: 18,
-      speed: 4,
-      angle: 0,
-      hp: 100,
-      score: 0
-    };
-
-    const bullets = [];
-    const enemies = [];
-    let lastShootTime = 0;
-
-    const leftJoystick = { touchId: null, startX: 0, startY: 0, currentX: 0, currentY: 0, active: false };
-    const rightJoystick = { touchId: null, startX: 0, startY: 0, currentX: 0, currentY: 0, active: false };
-    const maxRadius = 40;
-
-    const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
-    const mouse = { x: 0, y: 0, isDown: false };
-
-    window.addEventListener('keydown', function(e) {
-      if (e.key in keys) keys[e.key] = true;
-    });
-
-    window.addEventListener('keyup', function(e) {
-      if (e.key in keys) keys[e.key] = false;
-    });
-
-    canvas.addEventListener('mousemove', function(e) {
-      mouse.x = e.clientX;
-      mouse.y = e.clientY;
-    });
-
-    canvas.addEventListener('mousedown', function(e) {
-      if (e.button === 0) mouse.isDown = true;
-    });
-
-    canvas.addEventListener('mouseup', function(e) {
-      if (e.button === 0) mouse.isDown = false;
-    });
-
-    canvas.addEventListener('touchstart', function(e) {
-      if (selectedMode !== 'mobile') return;
-      e.preventDefault();
-      for (let touch of e.changedTouches) {
-        if (touch.clientX < window.innerWidth / 2 && !leftJoystick.active) {
-          leftJoystick.active = true;
-          leftJoystick.touchId = touch.identifier;
-          leftJoystick.startX = touch.clientX;
-          leftJoystick.startY = touch.clientY;
-          leftJoystick.currentX = touch.clientX;
-          leftJoystick.currentY = touch.clientY;
-        } else if (touch.clientX >= window.innerWidth / 2 && !rightJoystick.active) {
-          rightJoystick.active = true;
-          rightJoystick.touchId = touch.identifier;
-          rightJoystick.startX = touch.clientX;
-          rightJoystick.startY = touch.clientY;
-          rightJoystick.currentX = touch.clientX;
-          rightJoystick.currentY = touch.clientY;
-        }
-      }
-    });
-
-    canvas.addEventListener('touchmove', function(e) {
-      if (selectedMode !== 'mobile') return;
-      e.preventDefault();
-      for (let touch of e.changedTouches) {
-        if (touch.identifier === leftJoystick.touchId) {
-          leftJoystick.currentX = touch.clientX;
-          leftJoystick.currentY = touch.clientY;
-        } else if (touch.identifier === rightJoystick.touchId) {
-          rightJoystick.currentX = touch.clientX;
-          rightJoystick.currentY = touch.clientY;
-        }
-      }
-    });
-
-    function endTouch(e) {
-      if (selectedMode !== 'mobile') return;
-      e.preventDefault();
-      for (let touch of e.changedTouches) {
-        if (touch.identifier === leftJoystick.touchId) {
-          leftJoystick.active = false;
-          leftJoystick.touchId = null;
-        } else if (touch.identifier === rightJoystick.touchId) {
-          rightJoystick.active = false;
-          rightJoystick.touchId = null;
-        }
-      }
-    }
-
-    canvas.addEventListener('touchend', endTouch);
-    canvas.addEventListener('touchcancel', endTouch);
-
-    setInterval(function() {
-      if (!isGameRunning) return;
-      if (enemies.length < 10) {
-        let x, y;
-        if (Math.random() < 0.5) {
-          x = Math.random() < 0.5 ? -20 : canvas.width + 20;
-          y = Math.random() * canvas.height;
-        } else {
-          x = Math.random() * canvas.width;
-          y = Math.random() < 0.5 ? -20 : canvas.height + 20;
-        }
-        enemies.push({ x: x, y: y, radius: 15, speed: 2, hp: 20 });
-      }
-    }, 1500);
-
-    function shoot() {
-      const now = Date.now();
-      if (now - lastShootTime > 150) {
-        bullets.push({
-          x: player.x + Math.cos(player.angle) * player.radius,
-          y: player.y + Math.sin(player.angle) * player.radius,
-          vx: Math.cos(player.angle) * 10,
-          vy: Math.sin(player.angle) * 10,
-          radius: 4
-        });
-        lastShootTime = now;
-      }
-    }
-
-    function update() {
-      if (selectedMode === 'pc') {
-        let moveX = 0;
-        let moveY = 0;
-        if (keys.w || keys.W || keys.ArrowUp) moveY -= 1;
-        if (keys.s || keys.S || keys.ArrowDown) moveY += 1;
-        if (keys.a || keys.A || keys.ArrowLeft) moveX -= 1;
-        if (keys.d || keys.D || keys.ArrowRight) moveX += 1;
-
-        if (moveX !== 0 || moveY !== 0) {
-          const len = Math.hypot(moveX, moveY);
-          player.x += (moveX / len) * player.speed;
-          player.y += (moveY / len) * player.speed;
-        }
-
-        player.angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
-        if (mouse.isDown) shoot();
-
-      } else if (selectedMode === 'mobile') {
-        if (leftJoystick.active) {
-          const dx = leftJoystick.currentX - leftJoystick.startX;
-          const dy = leftJoystick.currentY - leftJoystick.startY;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 5) {
-            const angle = Math.atan2(dy, dx);
-            const moveDist = (Math.min(dist, maxRadius) / maxRadius) * player.speed;
-            player.x += Math.cos(angle) * moveDist;
-            player.y += Math.sin(angle) * moveDist;
-          }
-        }
-
-        if (rightJoystick.active) {
-          const dx = rightJoystick.currentX - rightJoystick.startX;
-          const dy = rightJoystick.currentY - rightJoystick.startY;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 10) {
-            player.angle = Math.atan2(dy, dx);
-            shoot();
-          }
-        }
-      }
-
-      player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
-      player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
-
-      for (let i = bullets.length - 1; i >= 0; i--) {
-        const b = bullets[i];
-        b.x += b.vx;
-        b.y += b.vy;
-        if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
-          bullets.splice(i, 1);
-        }
-      }
-
-      for (let i = enemies.length - 1; i >= 0; i--) {
-        const e = enemies[i];
-        const angle = Math.atan2(player.y - e.y, player.x - e.x);
-        e.x += Math.cos(angle) * e.speed;
-        e.y += Math.sin(angle) * e.speed;
-
-        for (let j = bullets.length - 1; j >= 0; j--) {
-          const b = bullets[j];
-          if (Math.hypot(e.x - b.x, e.y - b.y) < e.radius + b.radius) {
-            bullets.splice(j, 1);
-            e.hp -= 10;
-            if (e.hp <= 0) {
-              enemies.splice(i, 1);
-              player.score += 10;
-              document.getElementById('score').innerText = player.score;
-              break;
+        // Lắng nghe danh sách người chơi ban đầu
+        socket.on('currentPlayers', (players) => {
+            otherPlayers = players;
+            if (players[socket.id]) {
+                myPosition.x = players[socket.id].x;
+                myPosition.y = players[socket.id].y;
             }
-          }
+        });
+
+        // Người chơi mới tham gia
+        socket.on('newPlayer', (data) => {
+            otherPlayers[data.id] = data.player;
+        });
+
+        // Cập nhật khi người chơi khác di chuyển
+        socket.on('playerMoved', (data) => {
+            if (otherPlayers[data]) {
+                // cập nhật vị trí
+            }
+            if (otherPlayers[data.id]) {
+                otherPlayers[data.id].x = data.x;
+                otherPlayers[data.id].y = data.y;
+            }
+        });
+
+        // Xóa người chơi khi thoát
+        socket.on('disconnectPlayer', (id) => {
+            delete otherPlayers[id];
+        });
+
+        // Lắng nghe đạn bắn
+        socket.on('bulletFired', (data) => {
+            bullets.push(data);
+        });
+
+        // Điều khiển di chuyển bằng phím W, A, S, D
+        window.addEventListener('keydown', (e) => {
+            let speed = 5;
+            if (e.key === 'w' || e.key === 'W') myPosition.y -= speed;
+            if (e.key === 's' || e.key === 'S') myPosition.y += speed;
+            if (e.key === 'a' || e.key === 'A') myPosition.x -= speed;
+            if (e.key === 'd' || e.key === 'D') myPosition.x += speed;
+
+            // Gửi tọa độ mới lên server
+            socket.emit('playerMovement', { x: myPosition.x, y: myPosition.y });
+        });
+
+        // Vòng lặp vẽ game (Game Loop)
+        function gameLoop() {
+            // Xóa màn hình canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Vẽ tất cả người chơi khác
+            Object.keys(otherPlayers).forEach((id) => {
+                let p = otherPlayers[id];
+                ctx.fillStyle = p.color || '#ff5722';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Vẽ tên hoặc ID ngắn của người chơi
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px Arial';
+                ctx.fillText(id.substring(0, 4), p.x - 12, p.y - 20);
+            });
+
+            // Vẽ bản thân mình
+            ctx.fillStyle = '#4CAF50';
+            ctx.beginPath();
+            ctx.arc(myPosition.x, myPosition.y, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            requestAnimationFrame(gameLoop);
         }
 
-        if (Math.hypot(e.x - player.x, e.y - player.y) < e.radius + player.radius) {
-          player.hp -= 0.2;
-          document.getElementById('hp').innerText = Math.max(0, Math.floor(player.hp));
-          if (player.hp <= 0) {
-            alert('Game Over! Điểm của bạn: ' + player.score);
-            player.hp = 100;
-            player.score = 0;
-            enemies.length = 0;
-            document.getElementById('hp').innerText = 100;
-            document.getElementById('score').innerText = 0;
-          }
-        }
-      }
-    }
-
-    function drawJoystick(j, color) {
-      if (!j.active) return;
-      ctx.beginPath();
-      ctx.arc(j.startX, j.startY, maxRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-
-      const dx = j.currentX - j.startX;
-      const dy = j.currentY - j.startY;
-      const dist = Math.hypot(dx, dy);
-      const angle = Math.atan2(dy, dx);
-      const knobDist = Math.min(dist, maxRadius);
-
-      const knobX = j.startX + Math.cos(angle) * knobDist;
-      const knobY = j.startY + Math.sin(angle) * knobDist;
-
-      ctx.beginPath();
-      ctx.arc(knobX, knobY, 20, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-    }
-
-    function render() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      ctx.strokeStyle = '#2a2a2a';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < canvas.width; x += 40) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-      }
-      for (let y = 0; y < canvas.height; y += 40) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-      }
-
-      ctx.fillStyle = '#ffeb3b';
-      for (let b of bullets) {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.fillStyle = '#f44336';
-      for (let e of enemies) {
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.save();
-      ctx.translate(player.x, player.y);
-      ctx.rotate(player.angle);
-
-      ctx.beginPath();
-      ctx.arc(0, 0, player.radius, 0, Math.PI * 2);
-      ctx.fillStyle = '#2196f3';
-      ctx.fill();
-
-      ctx.fillStyle = '#1565c0';
-      ctx.fillRect(0, -4, player.radius + 8, 8);
-      ctx.restore();
-
-      if (selectedMode === 'mobile') {
-        drawJoystick(leftJoystick, 'rgba(33, 150, 243, 0.6)');
-        drawJoystick(rightJoystick, 'rgba(244, 67, 54, 0.6)');
-      }
-    }
-
-    function loop() {
-      if (!isGameRunning) return;
-      update();
-      render();
-      requestAnimationFrame(loop);
-    }
-  </script>
+        // Khởi chạy vòng lặp game
+        gameLoop();
+    </script>
 </body>
 </html>
