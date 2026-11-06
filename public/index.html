@@ -3,120 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mini-Multi Shooter Game</title>
+    <title>Game Bắn Súng</title>
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            margin: 0;
-            background-color: #111;
+            background-color: #000;
             color: #fff;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 14px;
+            color: #888;
+            z-index: 10;
+            pointer-events: none;
+        }
+        #select-screen {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             display: flex;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
+            align-items: center;
+            z-index: 20;
+            background-color: rgba(0, 0, 0, 0.9);
         }
-        canvas {
-            background-color: #222;
-            border: 2px solid #555;
-            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        #select-screen h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
         }
+        .btn-group {
+            display: flex;
+            gap: 15px;
+        }
+        .btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #fff;
+        }
+        .btn-mobile { background-color: #0088cc; }
+        .btn-pc { background-color: #4cae4c; }
+        canvas { display: block; }
     </style>
 </head>
 <body>
 
-    <h1>Mini-Multi Shooter 🎮</h1>
-    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    <div id="info">
+        Máu: <span id="hp">100</span><br>
+        Điểm: <span id="score">0</span><br>
+        Chế độ: <span id="mode">Chưa chọn</span>
+    </div>
 
-    <!-- Thư viện Socket.io client -->
+    <div id="select-screen">
+        <h2>Bạn đang chơi trên thiết bị nào?</h2>
+        <div class="btn-group">
+            <button class="btn btn-mobile" onclick="selectDevice('mobile')">📱 Điện thoại</button>
+            <button class="btn btn-pc" onclick="selectDevice('pc')">💻 Máy tính</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Thông tin người chơi của mình
-        let myPosition = { x: 100, y: 100 };
-        let otherPlayers = {};
-        let bullets = [];
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
 
-        // Lắng nghe danh sách người chơi ban đầu
+        let myPlayer = { x: canvas.width / 2, y: canvas.height / 2, hp: 100, score: 0 };
+        let otherPlayers = {};
+        let deviceMode = '';
+
+        function selectDevice(mode) {
+            deviceMode = mode;
+            document.getElementById('mode').innerText = mode === 'mobile' ? 'Điện thoại' : 'Máy tính';
+            document.getElementById('select-screen').style.display = 'none';
+        }
+
+        // --- SOCKET.IO MULTIPLAYER ---
         socket.on('currentPlayers', (players) => {
             otherPlayers = players;
-            if (players[socket.id]) {
-                myPosition.x = players[socket.id].x;
-                myPosition.y = players[socket.id].y;
-            }
         });
 
-        // Người chơi mới tham gia
         socket.on('newPlayer', (data) => {
             otherPlayers[data.id] = data.player;
         });
 
-        // Cập nhật khi người chơi khác di chuyển
         socket.on('playerMoved', (data) => {
-            if (otherPlayers[data]) {
-                // cập nhật vị trí
-            }
             if (otherPlayers[data.id]) {
                 otherPlayers[data.id].x = data.x;
                 otherPlayers[data.id].y = data.y;
             }
         });
 
-        // Xóa người chơi khi thoát
         socket.on('disconnectPlayer', (id) => {
             delete otherPlayers[id];
         });
 
-        // Lắng nghe đạn bắn
-        socket.on('bulletFired', (data) => {
-            bullets.push(data);
-        });
-
-        // Điều khiển di chuyển bằng phím W, A, S, D
+        // Di chuyển bằng phím cho PC
         window.addEventListener('keydown', (e) => {
-            let speed = 5;
-            if (e.key === 'w' || e.key === 'W') myPosition.y -= speed;
-            if (e.key === 's' || e.key === 'S') myPosition.y += speed;
-            if (e.key === 'a' || e.key === 'A') myPosition.x -= speed;
-            if (e.key === 'd' || e.key === 'D') myPosition.x += speed;
+            let speed = 6;
+            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') myPlayer.y -= speed;
+            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') myPlayer.y += speed;
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') myPlayer.x -= speed;
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') myPlayer.x += speed;
 
-            // Gửi tọa độ mới lên server
-            socket.emit('playerMovement', { x: myPosition.x, y: myPosition.y });
+            socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y });
         });
 
-        // Vòng lặp vẽ game (Game Loop)
+        // Game Loop
         function gameLoop() {
-            // Xóa màn hình canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Vẽ tất cả người chơi khác
+            // Vẽ những người chơi khác
             Object.keys(otherPlayers).forEach((id) => {
                 let p = otherPlayers[id];
                 ctx.fillStyle = p.color || '#ff5722';
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
                 ctx.fill();
-                
-                // Vẽ tên hoặc ID ngắn của người chơi
-                ctx.fillStyle = '#fff';
-                ctx.font = '12px Arial';
-                ctx.fillText(id.substring(0, 4), p.x - 12, p.y - 20);
             });
 
-            // Vẽ bản thân mình
+            // Vẽ bản thân
             ctx.fillStyle = '#4CAF50';
             ctx.beginPath();
-            ctx.arc(myPosition.x, myPosition.y, 15, 0, Math.PI * 2);
+            ctx.arc(myPlayer.x, myPlayer.y, 15, 0, Math.PI * 2);
             ctx.fill();
 
             requestAnimationFrame(gameLoop);
         }
 
-        // Khởi chạy vòng lặp game
         gameLoop();
     </script>
 </body>
