@@ -64,6 +64,7 @@ io.on('connection', (socket) => {
     });
 });
 // Thay vì chỉ ghi cố định port 3000, ta dùng process.env.PORT để Render tự cấp port
+// Thay vì chỉ ghi cố định port 3000, ta dùng process.env.PORT để Render tự cấp port
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
     console.log(`Server đang chạy tại cổng ${PORT}`);
