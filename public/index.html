@@ -87,37 +87,52 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        let myPlayer = { x: canvas.width / 2, y: canvas.height / 2, hp: 100, score: 0 };
+        let myPlayer = { x: canvas.width / 2, y: canvas.height / 2, hp: 100, score: 0, angle: 0 };
         let otherPlayers = {};
-        let deviceMode = '';
+        let bullets = [];
+        let mouseX = 0, mouseY = 0;
 
         function selectDevice(mode) {
-            deviceMode = mode;
             document.getElementById('mode').innerText = mode === 'mobile' ? 'Điện thoại' : 'Máy tính';
             document.getElementById('select-screen').style.display = 'none';
         }
 
-        // --- SOCKET.IO MULTIPLAYER ---
-        socket.on('currentPlayers', (players) => {
-            otherPlayers = players;
-        });
-
-        socket.on('newPlayer', (data) => {
-            otherPlayers[data.id] = data.player;
-        });
-
+        // --- SOCKET.IO EVENTS ---
+        socket.on('currentPlayers', (players) => { otherPlayers = players; });
+        socket.on('newPlayer', (data) => { otherPlayers[data.id] = data.player; });
         socket.on('playerMoved', (data) => {
             if (otherPlayers[data.id]) {
                 otherPlayers[data.id].x = data.x;
                 otherPlayers[data.id].y = data.y;
+                otherPlayers[data.id].angle = data.angle;
+            }
+        });
+        socket.on('disconnectPlayer', (id) => { delete otherPlayers[id]; });
+        socket.on('bulletFired', (data) => { bullets.push(data); });
+
+        // Xoay súng theo hướng chuột
+        window.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            myPlayer.angle = Math.atan2(mouseY - myPlayer.y, mouseX - myPlayer.x);
+            socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
+        });
+
+        // Click chuột để bắn đạn
+        window.addEventListener('click', () => {
+            if (document.getElementById('select-screen').style.display === 'none') {
+                const bulletData = {
+                    x: myPlayer.x + Math.cos(myPlayer.angle) * 20,
+                    y: myPlayer.y + Math.sin(myPlayer.angle) * 20,
+                    dx: Math.cos(myPlayer.angle) * 12,
+                    dy: Math.sin(myPlayer.angle) * 12
+                };
+                bullets.push(bulletData);
+                socket.emit('shoot', bulletData);
             }
         });
 
-        socket.on('disconnectPlayer', (id) => {
-            delete otherPlayers[id];
-        });
-
-        // Di chuyển bằng phím cho PC
+        // Di chuyển bằng phím W, A, S, D
         window.addEventListener('keydown', (e) => {
             let speed = 6;
             if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') myPlayer.y -= speed;
@@ -125,23 +140,53 @@
             if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') myPlayer.x -= speed;
             if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') myPlayer.x += speed;
 
-            socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y });
+            socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
         });
+
+        // Vẽ khẩu súng
+        function drawGun(x, y, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.fillStyle = '#silver';
+            ctx.fillStyle = '#ccc';
+            ctx.fillRect(0, -4, 20, 8); // Thân súng
+            ctx.restore();
+        }
 
         // Game Loop
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Vẽ những người chơi khác
+            // 1. Cập nhật và vẽ đạn bay
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                let b = bullets[i];
+                b.x += b.dx;
+                b.y += b.dy;
+
+                ctx.fillStyle = '#ffeb3b';
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Xóa đạn khi bay ra ngoài màn hình
+                if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // 2. Vẽ người chơi khác và súng của họ
             Object.keys(otherPlayers).forEach((id) => {
                 let p = otherPlayers[id];
+                drawGun(p.x, p.y, p.angle || 0);
                 ctx.fillStyle = p.color || '#ff5722';
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
                 ctx.fill();
             });
 
-            // Vẽ bản thân
+            // 3. Vẽ bản thân và súng của mình
+            drawGun(myPlayer.x, myPlayer.y, myPlayer.angle);
             ctx.fillStyle = '#4CAF50';
             ctx.beginPath();
             ctx.arc(myPlayer.x, myPlayer.y, 15, 0, Math.PI * 2);
