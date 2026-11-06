@@ -110,7 +110,7 @@
         socket.on('disconnectPlayer', (id) => { delete otherPlayers[id]; });
         socket.on('bulletFired', (data) => { bullets.push(data); });
 
-        // Xoay súng theo hướng chuột
+        // Xoay súng theo chuột
         window.addEventListener('mousemove', (e) => {
             mouseX = e.clientX;
             mouseY = e.clientY;
@@ -118,7 +118,7 @@
             socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
         });
 
-        // Click chuột để bắn đạn
+        // Bắn đạn khi click chuột
         window.addEventListener('click', () => {
             if (document.getElementById('select-screen').style.display === 'none') {
                 const bulletData = {
@@ -127,12 +127,11 @@
                     dx: Math.cos(myPlayer.angle) * 12,
                     dy: Math.sin(myPlayer.angle) * 12
                 };
-                bullets.push(bulletData);
                 socket.emit('shoot', bulletData);
             }
         });
 
-        // Di chuyển bằng phím W, A, S, D
+        // Di chuyển bằng phím
         window.addEventListener('keydown', (e) => {
             let speed = 6;
             if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') myPlayer.y -= speed;
@@ -143,12 +142,11 @@
             socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
         });
 
-        // Vẽ khẩu súng
+        // Hàm vẽ khẩu súng
         function drawGun(x, y, angle) {
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle);
-            ctx.fillStyle = '#silver';
             ctx.fillStyle = '#ccc';
             ctx.fillRect(0, -4, 20, 8); // Thân súng
             ctx.restore();
@@ -158,7 +156,7 @@
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Cập nhật và vẽ đạn bay
+            // 1. Cập nhật và vẽ đạn
             for (let i = bullets.length - 1; i >= 0; i--) {
                 let b = bullets[i];
                 b.x += b.dx;
@@ -169,7 +167,6 @@
                 ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Xóa đạn khi bay ra ngoài màn hình
                 if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
                     bullets.splice(i, 1);
                 }
