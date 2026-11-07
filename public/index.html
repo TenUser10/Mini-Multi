@@ -76,7 +76,17 @@
             margin-bottom: 15px;
         }
 
-        #name-screen, #device-screen, #gameover-screen { display: none; }
+        .color-picker-input {
+            width: 80px;
+            height: 50px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: none;
+            margin-bottom: 20px;
+        }
+
+        #name-screen, #color-screen, #device-screen, #gameover-screen { display: none; }
 
         /* Nút điều khiển di động */
         #mobile-controls {
@@ -128,7 +138,7 @@
         <span id="txt-mode">Mode</span>: <span id="mode">Not selected</span>
     </div>
 
-    <!-- Màn hình chọn Ngôn ngữ -->
+    <!-- 1. Màn hình chọn Ngôn ngữ -->
     <div id="lang-screen" class="screen">
         <h2 id="lang-title">Choose your language</h2>
         <div class="btn-group">
@@ -143,16 +153,25 @@
         </div>
     </div>
 
-    <!-- Màn hình Nhập Tên -->
+    <!-- 2. Màn hình Nhập Tên -->
     <div id="name-screen" class="screen">
         <h2 id="name-title">What is your name?</h2>
         <input type="text" id="player-name-input" class="name-input" placeholder="Enter name..." maxlength="15">
         <div>
-            <button class="btn btn-submit" onclick="submitName()"><span id="btn-next">Next</span></button>
+            <button class="btn btn-submit" onclick="submitName()"><span id="btn-next-name">Next</span></button>
         </div>
     </div>
 
-    <!-- Màn hình chọn Thiết bị -->
+    <!-- 3. Màn hình Chọn Màu Sắc Nhân Vật -->
+    <div id="color-screen" class="screen">
+        <h2 id="color-title">Choose your character color</h2>
+        <input type="color" id="player-color-input" class="color-picker-input" value="#4CAF50">
+        <div>
+            <button class="btn btn-submit" onclick="submitColor()"><span id="btn-next-color">Next</span></button>
+        </div>
+    </div>
+
+    <!-- 4. Màn hình chọn Thiết bị -->
     <div id="device-screen" class="screen">
         <h2 id="device-title">What device are you playing on?</h2>
         <div class="btn-group">
@@ -190,7 +209,7 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        let myPlayer = { name: "Player", x: canvas.width / 2, y: canvas.height / 2, hp: 100, score: 0, angle: 0 };
+        let myPlayer = { name: "Player", color: "#4CAF50", x: canvas.width / 2, y: canvas.height / 2, hp: 100, score: 0, angle: 0 };
         let otherPlayers = {};
         let bullets = [];
         let isMobile = false;
@@ -198,14 +217,14 @@
         let moveVector = { x: 0, y: 0 };
 
         const langData = {
-            en: { langTitle: "Choose your language", nameTitle: "What is your name?", namePlaceholder: "Enter your name...", nextBtn: "Next", deviceTitle: "What device are you playing on?", phone: "📱 Mobile", pc: "💻 Computer", hp: "HP", score: "Score", mode: "Mode", notSelected: "Not selected", mobileMode: "Mobile", pcMode: "Computer", fire: "FIRE", deadTitle: "YOU DIED", respawn: "RESPAWN" },
-            vi: { langTitle: "Chọn ngôn ngữ của bạn", nameTitle: "Bạn muốn đặt tên là gì?", namePlaceholder: "Nhập tên của bạn...", nextBtn: "Tiếp theo", deviceTitle: "Bạn đang chơi trên thiết bị nào?", phone: "📱 Điện thoại", pc: "💻 Máy tính", hp: "Máu", score: "Điểm", mode: "Chế độ", notSelected: "Chưa chọn", mobileMode: "Điện thoại", pcMode: "Máy tính", fire: "BẮN", deadTitle: "BẠN ĐÃ THUA", respawn: "HỒI SINH" },
-            es: { langTitle: "Elige tu idioma", nameTitle: "¿Cómo te llamas?", namePlaceholder: "Ingresa tu nombre...", nextBtn: "Siguiente", deviceTitle: "¿En qué dispositivo estás jugando?", phone: "📱 Móvil", pc: "💻 Ordenador", hp: "HP", score: "Puntos", mode: "Modo", notSelected: "No seleccionado", mobileMode: "Móvil", pcMode: "Ordenador", fire: "FUEGO", deadTitle: "HAS MUERTO", respawn: "RESPAWN" },
-            fr: { langTitle: "Choisissez votre langue", nameTitle: "Quel est votre nom ?", namePlaceholder: "Entrez votre nom...", nextBtn: "Suivant", deviceTitle: "Sur quel appareil jouez-vous ?", phone: "📱 Mobile", pc: "💻 Ordinateur", hp: "HP", score: "Score", mode: "Mode", notSelected: "Non sélectionné", mobileMode: "Mobile", pcMode: "Ordinateur", fire: "FEU", deadTitle: "VOUS ÊTES MORT", respawn: "RESSUSCITER" },
-            de: { langTitle: "Wähle deine Sprache", nameTitle: "Wie heißt du?", namePlaceholder: "Gib deinen Namen ein...", nextBtn: "Weiter", deviceTitle: "Auf welchem Gerät spielst du?", phone: "📱 Handy", pc: "💻 Computer", hp: "LP", score: "Punkte", mode: "Modus", notSelected: "Nicht ausgewählt", mobileMode: "Handy", pcMode: "Computer", fire: "FEUER", deadTitle: "DU BIST GESTORBEN", respawn: "WIEDERBELEBEN" },
-            ja: { langTitle: "言語を選択してください", nameTitle: "あなたの名前は何ですか？", namePlaceholder: "名前を入力...", nextBtn: "次へ", deviceTitle: "どのデバイスでプレイしていますか？", phone: "📱 モバイル", pc: "💻 パソコン", hp: "HP", score: "スコア", mode: "モード", notSelected: "未選択", mobileMode: "モバイル", pcMode: "パソコン", fire: "発射", deadTitle: "ゲームオーバー", respawn: "復活する" },
-            ko: { langTitle: "언어를 선택하세요", nameTitle: "이름이 무엇인가요?", namePlaceholder: "이름 입력...", nextBtn: "다음", deviceTitle: "어떤 기기로 플레이하고 계신가요?", phone: "📱 모바일", pc: "💻 컴퓨터", hp: "체력", score: "점수", mode: "모드", notSelected: "선택 안됨", mobileMode: "모바일", pcMode: "컴퓨터", fire: "발사", deadTitle: "사망하셨습니다", respawn: "부활하기" },
-            zh: { langTitle: "选择您的语言", nameTitle: "您叫什么名字？", namePlaceholder: "输入您的名字...", nextBtn: "下一步", deviceTitle: "您正在使用什么设备游玩？", phone: "📱 手机", pc: "💻 电脑", hp: "生命", score: "得分", mode: "模式", notSelected: "未选择", mobileMode: "手机", pcMode: "电脑", fire: "开火", deadTitle: "你输了", respawn: "复活" }
+            en: { langTitle: "Choose your language", nameTitle: "What is your name?", namePlaceholder: "Enter your name...", nextBtn: "Next", colorTitle: "Choose your character color", deviceTitle: "What device are you playing on?", phone: "📱 Mobile", pc: "💻 Computer", hp: "HP", score: "Score", mode: "Mode", notSelected: "Not selected", mobileMode: "Mobile", pcMode: "Computer", fire: "FIRE", deadTitle: "YOU DIED", respawn: "RESPAWN" },
+            vi: { langTitle: "Chọn ngôn ngữ của bạn", nameTitle: "Bạn muốn đặt tên là gì?", namePlaceholder: "Nhập tên của bạn...", nextBtn: "Tiếp theo", colorTitle: "Chọn màu sắc nhân vật của bạn", deviceTitle: "Bạn đang chơi trên thiết bị nào?", phone: "📱 Điện thoại", pc: "💻 Máy tính", hp: "Máu", score: "Điểm", mode: "Chế độ", notSelected: "Chưa chọn", mobileMode: "Điện thoại", pcMode: "Máy tính", fire: "BẮN", deadTitle: "BẠN ĐÃ THUA", respawn: "HỒI SINH" },
+            es: { langTitle: "Elige tu idioma", nameTitle: "¿Cómo te llamas?", namePlaceholder: "Ingresa tu nombre...", nextBtn: "Siguiente", colorTitle: "Elige el color de tu personaje", deviceTitle: "¿En qué dispositivo estás jugando?", phone: "📱 Móvil", pc: "💻 Ordenador", hp: "HP", score: "Puntos", mode: "Modo", notSelected: "No seleccionado", mobileMode: "Móvil", pcMode: "Ordenador", fire: "FUEGO", deadTitle: "HAS MUERTO", respawn: "RESPAWN" },
+            fr: { langTitle: "Choisissez votre langue", nameTitle: "Quel est votre nom ?", namePlaceholder: "Entrez votre nom...", nextBtn: "Suivant", colorTitle: "Choisissez la couleur de votre personnage", deviceTitle: "Sur quel appareil jouez-vous ?", phone: "📱 Mobile", pc: "💻 Ordinateur", hp: "HP", score: "Score", mode: "Mode", notSelected: "Non sélectionné", mobileMode: "Mobile", pcMode: "Ordinateur", fire: "FEU", deadTitle: "VOUS ÊTES MORT", respawn: "RESSUSCITER" },
+            de: { langTitle: "Wähle deine Sprache", nameTitle: "Wie heißt du?", namePlaceholder: "Gib deinen Namen ein...", nextBtn: "Weiter", colorTitle: "Wähle deine Charakterfarbe", deviceTitle: "Auf welchem Gerät spielst du?", phone: "📱 Handy", pc: "💻 Computer", hp: "LP", score: "Punkte", mode: "Modus", notSelected: "Nicht ausgewählt", mobileMode: "Handy", pcMode: "Computer", fire: "FEUER", deadTitle: "DU BIST GESTORBEN", respawn: "WIEDERBELEBEN" },
+            ja: { langTitle: "言語を選択してください", nameTitle: "あなたの名前は何ですか？", namePlaceholder: "名前を入力...", nextBtn: "次へ", colorTitle: "キャラクターの色を選んでください", deviceTitle: "どのデバイスでプレイしていますか？", phone: "📱 モバイル", pc: "💻 パソコン", hp: "HP", score: "スコア", mode: "モード", notSelected: "未選択", mobileMode: "モバイル", pcMode: "パソコン", fire: "発射", deadTitle: "ゲームオーバー", respawn: "復活する" },
+            ko: { langTitle: "언어를 선택하세요", nameTitle: "이름이 무엇인가요?", namePlaceholder: "이름 입력...", nextBtn: "다음", colorTitle: "캐릭터 색상을 선택하세요", deviceTitle: "어떤 기기로 플레이하고 계신가요?", phone: "📱 모바일", pc: "💻 컴퓨터", hp: "체력", score: "점수", mode: "모드", notSelected: "선택 안됨", mobileMode: "모바일", pcMode: "컴퓨터", fire: "발사", deadTitle: "사망하셨습니다", respawn: "부활하기" },
+            zh: { langTitle: "选择您的语言", nameTitle: "您叫什么名字？", namePlaceholder: "输入您的名字...", nextBtn: "下一步", colorTitle: "选择您的角色颜色", deviceTitle: "您正在使用什么设备游玩？", phone: "📱 手机", pc: "💻 电脑", hp: "生命", score: "得分", mode: "模式", notSelected: "未选择", mobileMode: "手机", pcMode: "电脑", fire: "开火", deadTitle: "你输了", respawn: "复活" }
         };
 
         let currentLang = 'en';
@@ -217,7 +236,9 @@
             document.getElementById('lang-title').innerText = t.langTitle;
             document.getElementById('name-title').innerText = t.nameTitle;
             document.getElementById('player-name-input').placeholder = t.namePlaceholder;
-            document.getElementById('btn-next').innerText = t.nextBtn;
+            document.getElementById('btn-next-name').innerText = t.nextBtn;
+            document.getElementById('color-title').innerText = t.colorTitle;
+            document.getElementById('btn-next-color').innerText = t.nextBtn;
             document.getElementById('device-title').innerText = t.deviceTitle;
             document.getElementById('btn-phone').innerText = t.phone;
             document.getElementById('btn-computer').innerText = t.pc;
@@ -239,6 +260,15 @@
                 myPlayer.name = inputVal;
             }
             document.getElementById('name-screen').style.display = 'none';
+            document.getElementById('color-screen').style.display = 'flex';
+        }
+
+        function submitColor() {
+            myPlayer.color = document.getElementById('player-color-input').value;
+            // Gửi thông tin tên và màu sắc lên server
+            socket.emit('updatePlayerInfo', { name: myPlayer.name, color: myPlayer.color });
+
+            document.getElementById('color-screen').style.display = 'none';
             document.getElementById('device-screen').style.display = 'flex';
         }
 
@@ -323,7 +353,11 @@
         });
 
         window.addEventListener('click', () => {
-            if (!isMobile && !isDead && document.getElementById('device-screen').style.display === 'none' && document.getElementById('lang-screen').style.display === 'none' && document.getElementById('name-screen').style.display === 'none') {
+            const screensOpen = document.getElementById('device-screen').style.display === 'flex' || 
+                                document.getElementById('lang-screen').style.display === 'flex' || 
+                                document.getElementById('name-screen').style.display === 'flex' || 
+                                document.getElementById('color-screen').style.display === 'flex';
+            if (!isMobile && !isDead && !screensOpen) {
                 fireBullet();
             }
         });
@@ -436,9 +470,9 @@
                     socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
                 }
 
-                // Vẽ bản thân
+                // Vẽ bản thân với màu sắc người chơi đã chọn
                 drawGun(myPlayer.x, myPlayer.y, myPlayer.angle);
-                ctx.fillStyle = '#4CAF50';
+                ctx.fillStyle = myPlayer.color;
                 ctx.beginPath();
                 ctx.arc(myPlayer.x, myPlayer.y, 15, 0, Math.PI * 2);
                 ctx.fill();

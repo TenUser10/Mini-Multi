@@ -12,20 +12,31 @@ let bullets = [];
 io.on('connection', (socket) => {
     console.log(`Người chơi kết nối: ${socket.id}`);
 
+    // Khởi tạo thông tin cơ bản cho player
     players[socket.id] = {
+        name: "Player",
         x: Math.random() * 600 + 100,
         y: Math.random() * 400 + 100,
         angle: 0,
         hp: 100,
         score: 0,
-        color: '#' + Math.floor(Math.random()*16777215).toString(16)
+        color: '#4CAF50' // Mặc định
     };
 
     socket.emit('currentPlayers', players);
 
-    socket.broadcast.emit('newPlayer', {
-        id: socket.id,
-        player: players[socket.id]
+    // Lắng nghe sự kiện cập nhật thông tin (Tên và Màu sắc) từ client
+    socket.on('updatePlayerInfo', (data) => {
+        if (players[socket.id]) {
+            if (data.name) players[socket.id].name = data.name;
+            if (data.color) players[socket.id].color = data.color;
+
+            // Báo cho các người chơi khác biết thông tin mới của player này
+            socket.broadcast.emit('newPlayer', {
+                id: socket.id,
+                player: players[socket.id]
+            });
+        }
     });
 
     socket.on('playerMovement', (movementData) => {
@@ -55,7 +66,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Nhận sự kiện hồi sinh từ client khi bấm nút
     socket.on('respawn', () => {
         if (players[socket.id]) {
             players[socket.id].hp = 100;
@@ -80,7 +90,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// Game Loop trên Server: Tính toán di chuyển của đạn và va chạm
+// Game Loop trên Server
 setInterval(() => {
     for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];
@@ -92,7 +102,6 @@ setInterval(() => {
         Object.keys(players).forEach((id) => {
             if (id !== b.ownerId && !bulletHit) {
                 let p = players[id];
-                // Chỉ tính va chạm nếu người chơi đó còn sống (hp > 0)
                 if (p.hp > 0) {
                     let dist = Math.hypot(p.x - b.x, p.y - b.y);
 
