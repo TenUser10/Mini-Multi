@@ -209,7 +209,7 @@
 
         // --- SOCKET.IO EVENTS ---
         socket.on('currentPlayers', (players) => {
-            delete players[socket.id]; // Loại bỏ chính mình khỏi danh sách để tránh nhân đôi nhân vật
+            delete players[socket.id]; // Loại bỏ chính mình để tránh nhân đôi nhân vật
             otherPlayers = players;
         });
 
@@ -352,6 +352,7 @@
                 }
             }
 
+            // 2. Vẽ người chơi khác với đúng màu sắc do server cấp
             Object.keys(otherPlayers).forEach((id) => {
                 let p = otherPlayers[id];
                 drawGun(p.x, p.y, p.angle || 0);
@@ -361,6 +362,7 @@
                 ctx.fill();
             });
 
+            // 3. Vẽ bản thân (màu xanh lá)
             drawGun(myPlayer.x, myPlayer.y, myPlayer.angle);
             ctx.fillStyle = '#4CAF50';
             ctx.beginPath();
