@@ -112,7 +112,7 @@
         <span id="txt-mode">Mode</span>: <span id="mode">Not selected</span>
     </div>
 
-    <!-- Màn hình chọn Ngôn ngữ (Mặc định Tiếng Anh) -->
+    <!-- Màn hình chọn Ngôn ngữ -->
     <div id="lang-screen" class="screen">
         <h2 id="lang-title">Choose your language</h2>
         <div class="btn-group">
@@ -136,7 +136,7 @@
         </div>
     </div>
 
-    <!-- Giao diện phím ảo trên điện thoại -->
+    <!-- Giao diện phím ảo di động -->
     <div id="mobile-controls">
         <div id="joystick-base">
             <div id="joystick-stick"></div>
@@ -165,7 +165,6 @@
         let isMobile = false;
         let moveVector = { x: 0, y: 0 };
 
-        // Từ điển ngôn ngữ
         const langData = {
             en: { langTitle: "Choose your language", deviceTitle: "What device are you playing on?", phone: "📱 Mobile", pc: "💻 Computer", hp: "HP", score: "Score", mode: "Mode", notSelected: "Not selected", mobileMode: "Mobile", pcMode: "Computer", fire: "FIRE" },
             vi: { langTitle: "Chọn ngôn ngữ của bạn", deviceTitle: "Bạn đang chơi trên thiết bị nào?", phone: "📱 Điện thoại", pc: "💻 Máy tính", hp: "Máu", score: "Điểm", mode: "Chế độ", notSelected: "Chưa chọn", mobileMode: "Điện thoại", pcMode: "Máy tính", fire: "BẮN" },
@@ -209,7 +208,7 @@
 
         // --- SOCKET.IO EVENTS ---
         socket.on('currentPlayers', (players) => {
-            delete players[socket.id]; // Loại bỏ chính mình để tránh nhân đôi nhân vật
+            delete players[socket.id];
             otherPlayers = players;
         });
 
@@ -228,7 +227,26 @@
         });
 
         socket.on('disconnectPlayer', (id) => { delete otherPlayers[id]; });
-        socket.on('bulletFired', (data) => { bullets.push(data); });
+        socket.on('bulletsUpdate', (serverBullets) => { bullets = serverBullets; });
+
+        // Cập nhật Máu & Điểm khi có va chạm
+        socket.on('updateStats', (data) => {
+            if (data.victimId === socket.id) {
+                myPlayer.hp = data.victimHp;
+                myPlayer.x = data.victimX;
+                myPlayer.y = data.victimY;
+                document.getElementById('hp').innerText = myPlayer.hp;
+            } else if (otherPlayers[data.victimId]) {
+                otherPlayers[data.victimId].hp = data.victimHp;
+                otherPlayers[data.victimId].x = data.victimX;
+                otherPlayers[data.victimId].y = data.victimY;
+            }
+
+            if (data.shooterId === socket.id) {
+                myPlayer.score = data.shooterScore;
+                document.getElementById('score').innerText = myPlayer.score;
+            }
+        });
 
         // Điều khiển PC
         window.addEventListener('mousemove', (e) => {
@@ -255,7 +273,7 @@
             }
         });
 
-        // Joystick ảo trên điện thoại
+        // Joystick điện thoại
         const joystickBase = document.getElementById('joystick-base');
         const joystickStick = document.getElementById('joystick-stick');
         let joystickTouchId = null;
@@ -325,6 +343,13 @@
             ctx.restore();
         }
 
+        function drawHPBar(x, y, hp) {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(x - 15, y - 25, 30, 4);
+            ctx.fillStyle = 'green';
+            ctx.fillRect(x - 15, y - 25, (hp / 100) * 30, 4);
+        }
+
         // Game Loop
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -337,22 +362,15 @@
                 socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
             }
 
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                let b = bullets[i];
-                b.x += b.dx;
-                b.y += b.dy;
-
+            // Vẽ đạn
+            for (let b of bullets) {
                 ctx.fillStyle = '#ffeb3b';
                 ctx.beginPath();
                 ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
                 ctx.fill();
-
-                if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
-                    bullets.splice(i, 1);
-                }
             }
 
-            // 2. Vẽ người chơi khác với đúng màu sắc do server cấp
+            // Vẽ người chơi khác + Thanh máu trên đầu
             Object.keys(otherPlayers).forEach((id) => {
                 let p = otherPlayers[id];
                 drawGun(p.x, p.y, p.angle || 0);
@@ -360,14 +378,16 @@
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
                 ctx.fill();
+                drawHPBar(p.x, p.y, p.hp !== undefined ? p.hp : 100);
             });
 
-            // 3. Vẽ bản thân (màu xanh lá)
+            // Vẽ bản thân + Thanh máu trên đầu
             drawGun(myPlayer.x, myPlayer.y, myPlayer.angle);
             ctx.fillStyle = '#4CAF50';
             ctx.beginPath();
             ctx.arc(myPlayer.x, myPlayer.y, 15, 0, Math.PI * 2);
             ctx.fill();
+            drawHPBar(myPlayer.x, myPlayer.y, myPlayer.hp);
 
             requestAnimationFrame(gameLoop);
         }
