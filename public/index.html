@@ -2,10 +2,10 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Game Bắn Súng</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body {
             background-color: #000;
             color: #fff;
@@ -43,16 +43,56 @@
             gap: 15px;
         }
         .btn {
-            padding: 12px 24px;
-            font-size: 16px;
+            padding: 15px 30px;
+            font-size: 18px;
             font-weight: bold;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             cursor: pointer;
             color: #fff;
         }
         .btn-mobile { background-color: #0088cc; }
         .btn-pc { background-color: #4cae4c; }
+        
+        /* Nút điều khiển di động */
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 15;
+        }
+        #joystick-base {
+            position: absolute;
+            bottom: 40px; left: 40px;
+            width: 120px; height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            pointer-events: auto;
+        }
+        #joystick-stick {
+            position: absolute;
+            top: 35px; left: 35px;
+            width: 50px; height: 50px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+        }
+        #shoot-btn {
+            position: absolute;
+            bottom: 50px; right: 50px;
+            width: 90px; height: 90px;
+            background: rgba(255, 68, 68, 0.7);
+            border: 2px solid #ff4444;
+            border-radius: 50%;
+            color: #fff;
+            font-weight: bold;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+        }
         canvas { display: block; }
     </style>
 </head>
@@ -70,6 +110,14 @@
             <button class="btn btn-mobile" onclick="selectDevice('mobile')">📱 Điện thoại</button>
             <button class="btn btn-pc" onclick="selectDevice('pc')">💻 Máy tính</button>
         </div>
+    </div>
+
+    <!-- Giao diện phím ảo trên điện thoại -->
+    <div id="mobile-controls">
+        <div id="joystick-base">
+            <div id="joystick-stick"></div>
+        </div>
+        <div id="shoot-btn">BẮN</div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -90,11 +138,16 @@
         let myPlayer = { x: canvas.width / 2, y: canvas.height / 2, hp: 100, score: 0, angle: 0 };
         let otherPlayers = {};
         let bullets = [];
-        let mouseX = 0, mouseY = 0;
+        let isMobile = false;
+        let moveVector = { x: 0, y: 0 };
 
         function selectDevice(mode) {
-            document.getElementById('mode').innerText = mode === 'mobile' ? 'Điện thoại' : 'Máy tính';
+            isMobile = (mode === 'mobile');
+            document.getElementById('mode').innerText = isMobile ? 'Điện thoại' : 'Máy tính';
             document.getElementById('select-screen').style.display = 'none';
+            if (isMobile) {
+                document.getElementById('mobile-controls').style.display = 'block';
+            }
         }
 
         // --- SOCKET.IO EVENTS ---
@@ -110,45 +163,98 @@
         socket.on('disconnectPlayer', (id) => { delete otherPlayers[id]; });
         socket.on('bulletFired', (data) => { bullets.push(data); });
 
-        // Xoay súng theo chuột
+        // Điều khiển trên PC (Chuột + Bàn phím)
         window.addEventListener('mousemove', (e) => {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-            myPlayer.angle = Math.atan2(mouseY - myPlayer.y, mouseX - myPlayer.x);
-            socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
-        });
-
-        // Bắn đạn khi click chuột
-        window.addEventListener('click', () => {
-            if (document.getElementById('select-screen').style.display === 'none') {
-                const bulletData = {
-                    x: myPlayer.x + Math.cos(myPlayer.angle) * 20,
-                    y: myPlayer.y + Math.sin(myPlayer.angle) * 20,
-                    dx: Math.cos(myPlayer.angle) * 12,
-                    dy: Math.sin(myPlayer.angle) * 12
-                };
-                socket.emit('shoot', bulletData);
+            if (!isMobile) {
+                myPlayer.angle = Math.atan2(e.clientY - myPlayer.y, e.clientX - myPlayer.x);
             }
         });
 
-        // Di chuyển bằng phím
-        window.addEventListener('keydown', (e) => {
-            let speed = 6;
-            if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') myPlayer.y -= speed;
-            if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') myPlayer.y += speed;
-            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') myPlayer.x -= speed;
-            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') myPlayer.x += speed;
-
-            socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
+        window.addEventListener('click', () => {
+            if (!isMobile && document.getElementById('select-screen').style.display === 'none') {
+                fireBullet();
+            }
         });
 
-        // Hàm vẽ khẩu súng
+        window.addEventListener('keydown', (e) => {
+            if (!isMobile) {
+                let speed = 6;
+                if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') myPlayer.y -= speed;
+                if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') myPlayer.y += speed;
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') myPlayer.x -= speed;
+                if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') myPlayer.x += speed;
+                socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
+            }
+        });
+
+        // --- XỬ LÝ JOYSTICK ẢO TRÊN ĐIỆN THOẠI ---
+        const joystickBase = document.getElementById('joystick-base');
+        const joystickStick = document.getElementById('joystick-stick');
+        let joystickTouchId = null;
+
+        joystickBase.addEventListener('touchstart', (e) => {
+            const touch = e.changedTouches[0];
+            joystickTouchId = touch.identifier;
+            updateJoystick(touch);
+        });
+
+        joystickBase.addEventListener('touchmove', (e) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joystickTouchId) {
+                    updateJoystick(e.changedTouches[i]);
+                }
+            }
+        });
+
+        function endJoystick() {
+            joystickTouchId = null;
+            moveVector = { x: 0, y: 0 };
+            joystickStick.style.transform = `translate(0px, 0px)`;
+        }
+
+        joystickBase.addEventListener('touchend', endJoystick);
+        joystickBase.addEventListener('touchcancel', endJoystick);
+
+        function updateJoystick(touch) {
+            const rect = joystickBase.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            let dx = touch.clientX - centerX;
+            let dy = touch.clientY - centerY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const maxRadius = 40;
+
+            if (distance > maxRadius) {
+                dx = (dx / distance) * maxRadius;
+                dy = (dy / distance) * maxRadius;
+            }
+
+            joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
+            moveVector = { x: dx / maxRadius, y: dy / maxRadius };
+        }
+
+        // Nút bắn trên điện thoại
+        document.getElementById('shoot-btn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            fireBullet();
+        });
+
+        function fireBullet() {
+            const bulletData = {
+                x: myPlayer.x + Math.cos(myPlayer.angle) * 20,
+                y: myPlayer.y + Math.sin(myPlayer.angle) * 20,
+                dx: Math.cos(myPlayer.angle) * 12,
+                dy: Math.sin(myPlayer.angle) * 12
+            };
+            socket.emit('shoot', bulletData);
+        }
+
         function drawGun(x, y, angle) {
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle);
             ctx.fillStyle = '#ccc';
-            ctx.fillRect(0, -4, 20, 8); // Thân súng
+            ctx.fillRect(0, -4, 20, 8);
             ctx.restore();
         }
 
@@ -156,7 +262,16 @@
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Cập nhật và vẽ đạn
+            // Nếu đang dùng điện thoại, cập nhật vị trí theo joystick liên tục
+            if (isMobile && (moveVector.x !== 0 || moveVector.y !== 0)) {
+                let speed = 5;
+                myPlayer.x += moveVector.x * speed;
+                myPlayer.y += moveVector.y * speed;
+                myPlayer.angle = Math.atan2(moveVector.y, moveVector.x);
+                socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
+            }
+
+            // Cập nhật đạn bay
             for (let i = bullets.length - 1; i >= 0; i--) {
                 let b = bullets[i];
                 b.x += b.dx;
@@ -172,7 +287,7 @@
                 }
             }
 
-            // 2. Vẽ người chơi khác và súng của họ
+            // Vẽ người chơi khác
             Object.keys(otherPlayers).forEach((id) => {
                 let p = otherPlayers[id];
                 drawGun(p.x, p.y, p.angle || 0);
@@ -182,7 +297,7 @@
                 ctx.fill();
             });
 
-            // 3. Vẽ bản thân và súng của mình
+            // Vẽ mình
             drawGun(myPlayer.x, myPlayer.y, myPlayer.angle);
             ctx.fillStyle = '#4CAF50';
             ctx.beginPath();
