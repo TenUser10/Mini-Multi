@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Game Bắn Súng</title>
+    <title>Mini-Multi Shooter Game</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body {
@@ -23,7 +23,7 @@
             z-index: 10;
             pointer-events: none;
         }
-        #select-screen {
+        .screen {
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
@@ -32,28 +32,36 @@
             justify-content: center;
             align-items: center;
             z-index: 20;
-            background-color: rgba(0, 0, 0, 0.9);
+            background-color: rgba(0, 0, 0, 0.95);
         }
-        #select-screen h2 {
+        .screen h2 {
             font-size: 24px;
             margin-bottom: 20px;
+            text-align: center;
         }
         .btn-group {
             display: flex;
+            flex-wrap: wrap;
             gap: 15px;
+            justify-content: center;
+            max-width: 600px;
         }
         .btn {
-            padding: 15px 30px;
-            font-size: 18px;
+            padding: 12px 24px;
+            font-size: 16px;
             font-weight: bold;
             border: none;
-            border-radius: 12px;
+            border-radius: 8px;
             cursor: pointer;
             color: #fff;
         }
+        .btn-lang { background-color: #333; border: 1px solid #555; }
+        .btn-lang:hover { background-color: #555; }
         .btn-mobile { background-color: #0088cc; }
         .btn-pc { background-color: #4cae4c; }
         
+        #device-screen { display: none; }
+
         /* Nút điều khiển di động */
         #mobile-controls {
             display: none;
@@ -99,16 +107,32 @@
 <body>
 
     <div id="info">
-        Máu: <span id="hp">100</span><br>
-        Điểm: <span id="score">0</span><br>
-        Chế độ: <span id="mode">Chưa chọn</span>
+        <span id="txt-hp">HP</span>: <span id="hp">100</span><br>
+        <span id="txt-score">Score</span>: <span id="score">0</span><br>
+        <span id="txt-mode">Mode</span>: <span id="mode">Not selected</span>
     </div>
 
-    <div id="select-screen">
-        <h2>Bạn đang chơi trên thiết bị nào?</h2>
+    <!-- Màn hình chọn Ngôn ngữ (Mặc định Tiếng Anh) -->
+    <div id="lang-screen" class="screen">
+        <h2 id="lang-title">Choose your language</h2>
         <div class="btn-group">
-            <button class="btn btn-mobile" onclick="selectDevice('mobile')">📱 Điện thoại</button>
-            <button class="btn btn-pc" onclick="selectDevice('pc')">💻 Máy tính</button>
+            <button class="btn btn-lang" onclick="setLanguage('en')">English (Default)</button>
+            <button class="btn btn-lang" onclick="setLanguage('vi')">Tiếng Việt</button>
+            <button class="btn btn-lang" onclick="setLanguage('es')">Español</button>
+            <button class="btn btn-lang" onclick="setLanguage('fr')">Français</button>
+            <button class="btn btn-lang" onclick="setLanguage('de')">Deutsch</button>
+            <button class="btn btn-lang" onclick="setLanguage('ja')">日本語</button>
+            <button class="btn btn-lang" onclick="setLanguage('ko')">한국어</button>
+            <button class="btn btn-lang" onclick="setLanguage('zh')">中文</button>
+        </div>
+    </div>
+
+    <!-- Màn hình chọn Thiết bị -->
+    <div id="device-screen" class="screen">
+        <h2 id="device-title">What device are you playing on?</h2>
+        <div class="btn-group">
+            <button class="btn btn-mobile" onclick="selectDevice('mobile')"><span id="btn-phone">📱 Mobile</span></button>
+            <button class="btn btn-pc" onclick="selectDevice('pc')"><span id="btn-computer">💻 Computer</span></button>
         </div>
     </div>
 
@@ -117,7 +141,7 @@
         <div id="joystick-base">
             <div id="joystick-stick"></div>
         </div>
-        <div id="shoot-btn">BẮN</div>
+        <div id="shoot-btn"><span id="txt-shoot">FIRE</span></div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -141,10 +165,44 @@
         let isMobile = false;
         let moveVector = { x: 0, y: 0 };
 
+        // Từ điển ngôn ngữ
+        const langData = {
+            en: { langTitle: "Choose your language", deviceTitle: "What device are you playing on?", phone: "📱 Mobile", pc: "💻 Computer", hp: "HP", score: "Score", mode: "Mode", notSelected: "Not selected", mobileMode: "Mobile", pcMode: "Computer", fire: "FIRE" },
+            vi: { langTitle: "Chọn ngôn ngữ của bạn", deviceTitle: "Bạn đang chơi trên thiết bị nào?", phone: "📱 Điện thoại", pc: "💻 Máy tính", hp: "Máu", score: "Điểm", mode: "Chế độ", notSelected: "Chưa chọn", mobileMode: "Điện thoại", pcMode: "Máy tính", fire: "BẮN" },
+            es: { langTitle: "Elige tu idioma", deviceTitle: "¿En qué dispositivo estás jugando?", phone: "📱 Móvil", pc: "💻 Ordenador", hp: "HP", score: "Puntos", mode: "Modo", notSelected: "No seleccionado", mobileMode: "Móvil", pcMode: "Ordenador", fire: "FUEGO" },
+            fr: { langTitle: "Choisissez votre langue", deviceTitle: "Sur quel appareil jouez-vous ?", phone: "📱 Mobile", pc: "💻 Ordinateur", hp: "HP", score: "Score", mode: "Mode", notSelected: "Non sélectionné", mobileMode: "Mobile", pcMode: "Ordinateur", fire: "FEU" },
+            de: { langTitle: "Wähle deine Sprache", deviceTitle: "Auf welchem Gerät spielst du?", phone: "📱 Handy", pc: "💻 Computer", hp: "LP", score: "Punkte", mode: "Modus", notSelected: "Nicht ausgewählt", mobileMode: "Handy", pcMode: "Computer", fire: "FEUER" },
+            ja: { langTitle: "言語を選択してください", deviceTitle: "どのデバイスでプレイしていますか？", phone: "📱 モバイル", pc: "💻 パソコン", hp: "HP", score: "スコア", mode: "モード", notSelected: "未選択", mobileMode: "モバイル", pcMode: "パソコン", fire: "発射" },
+            ko: { langTitle: "언어를 선택하세요", deviceTitle: "어떤 기기로 플레이하고 계신가요?", phone: "📱 모바일", pc: "💻 컴퓨터", hp: "체력", score: "점수", mode: "모드", notSelected: "선택 안됨", mobileMode: "모바일", pcMode: "컴퓨터", fire: "발사" },
+            zh: { langTitle: "选择您的语言", deviceTitle: "您正在使用什么设备游玩？", phone: "📱 手机", pc: "💻 电脑", hp: "生命", score: "得分", mode: "模式", notSelected: "未选择", mobileMode: "手机", pcMode: "电脑", fire: "开火" }
+        };
+
+        let currentLang = 'en';
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            const t = langData[lang];
+            
+            document.getElementById('lang-title').innerText = t.langTitle;
+            document.getElementById('device-title').innerText = t.deviceTitle;
+            document.getElementById('btn-phone').innerText = t.phone;
+            document.getElementById('btn-computer').innerText = t.pc;
+            document.getElementById('txt-hp').innerText = t.hp;
+            document.getElementById('txt-score').innerText = t.score;
+            document.getElementById('txt-mode').innerText = t.mode;
+            document.getElementById('mode').innerText = t.notSelected;
+            document.getElementById('txt-shoot').innerText = t.fire;
+
+            // Ẩn màn hình ngôn ngữ, hiện màn hình chọn thiết bị
+            document.getElementById('lang-screen').style.display = 'none';
+            document.getElementById('device-screen').style.display = 'flex';
+        }
+
         function selectDevice(mode) {
             isMobile = (mode === 'mobile');
-            document.getElementById('mode').innerText = isMobile ? 'Điện thoại' : 'Máy tính';
-            document.getElementById('select-screen').style.display = 'none';
+            const t = langData[currentLang];
+            document.getElementById('mode').innerText = isMobile ? t.mobileMode : t.pcMode;
+            document.getElementById('device-screen').style.display = 'none';
             if (isMobile) {
                 document.getElementById('mobile-controls').style.display = 'block';
             }
@@ -163,7 +221,7 @@
         socket.on('disconnectPlayer', (id) => { delete otherPlayers[id]; });
         socket.on('bulletFired', (data) => { bullets.push(data); });
 
-        // Điều khiển trên PC (Chuột + Bàn phím)
+        // Điều khiển PC
         window.addEventListener('mousemove', (e) => {
             if (!isMobile) {
                 myPlayer.angle = Math.atan2(e.clientY - myPlayer.y, e.clientX - myPlayer.x);
@@ -171,7 +229,7 @@
         });
 
         window.addEventListener('click', () => {
-            if (!isMobile && document.getElementById('select-screen').style.display === 'none') {
+            if (!isMobile && document.getElementById('device-screen').style.display === 'none' && document.getElementById('lang-screen').style.display === 'none') {
                 fireBullet();
             }
         });
@@ -187,7 +245,7 @@
             }
         });
 
-        // --- XỬ LÝ JOYSTICK ẢO TRÊN ĐIỆN THOẠI ---
+        // Joystick ảo trên điện thoại
         const joystickBase = document.getElementById('joystick-base');
         const joystickStick = document.getElementById('joystick-stick');
         let joystickTouchId = null;
@@ -233,7 +291,6 @@
             moveVector = { x: dx / maxRadius, y: dy / maxRadius };
         }
 
-        // Nút bắn trên điện thoại
         document.getElementById('shoot-btn').addEventListener('touchstart', (e) => {
             e.preventDefault();
             fireBullet();
@@ -262,7 +319,6 @@
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Nếu đang dùng điện thoại, cập nhật vị trí theo joystick liên tục
             if (isMobile && (moveVector.x !== 0 || moveVector.y !== 0)) {
                 let speed = 5;
                 myPlayer.x += moveVector.x * speed;
@@ -271,7 +327,6 @@
                 socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
             }
 
-            // Cập nhật đạn bay
             for (let i = bullets.length - 1; i >= 0; i--) {
                 let b = bullets[i];
                 b.x += b.dx;
@@ -287,7 +342,6 @@
                 }
             }
 
-            // Vẽ người chơi khác
             Object.keys(otherPlayers).forEach((id) => {
                 let p = otherPlayers[id];
                 drawGun(p.x, p.y, p.angle || 0);
@@ -297,7 +351,6 @@
                 ctx.fill();
             });
 
-            // Vẽ mình
             drawGun(myPlayer.x, myPlayer.y, myPlayer.angle);
             ctx.fillStyle = '#4CAF50';
             ctx.beginPath();
