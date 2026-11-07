@@ -182,7 +182,7 @@
             de: { langTitle: "Wähle deine Sprache", deviceTitle: "Auf welchem Gerät spielst du?", phone: "📱 Handy", pc: "💻 Computer", hp: "LP", score: "Punkte", mode: "Modus", notSelected: "Nicht ausgewählt", mobileMode: "Handy", pcMode: "Computer", fire: "FEUER", deadTitle: "DU BIST GESTORBEN", respawn: "WIEDERBELEBEN" },
             ja: { langTitle: "言語を選択してください", deviceTitle: "どのデバイスでプレイしていますか？", phone: "📱 モバイル", pc: "💻 パソコン", hp: "HP", score: "スコア", mode: "モード", notSelected: "未選択", mobileMode: "モバイル", pcMode: "パソコン", fire: "発射", deadTitle: "ゲームオーバー", respawn: "復活する" },
             ko: { langTitle: "언어를 선택하세요", deviceTitle: "어떤 기기로 플레이하고 계신가요?", phone: "📱 모바일", pc: "💻 컴퓨터", hp: "체력", score: "점수", mode: "모드", notSelected: "선택 안됨", mobileMode: "모바일", pcMode: "컴퓨터", fire: "발사", deadTitle: "사망하셨습니다", respawn: "부활하기" },
-            zh: { langTitle: "选择您的语言", deviceTitle: "您正在使用什么设备游玩？", phone: "📱 手机", pc: "💻 电脑", hp: "生命", score: "得分", mode: "模式", notSelected: "未选择", mobileMode: "手机", pcMode: "电脑", fire: "开火", data: "你输了", deadTitle: "你输了", respawn: "复活" }
+            zh: { langTitle: "选择您的语言", deviceTitle: "您正在使用什么设备游玩？", phone: "📱 手机", pc: "💻 电脑", hp: "生命", score: "得分", mode: "模式", notSelected: "未选择", mobileMode: "手机", pcMode: "电脑", fire: "开火", deadTitle: "你输了", respawn: "复活" }
         };
 
         let currentLang = 'en';
@@ -218,11 +218,8 @@
         }
 
         function respawnPlayer() {
+            socket.emit('respawn'); // Gửi lệnh hồi sinh lên server
             isDead = false;
-            myPlayer.hp = 100;
-            myPlayer.x = Math.random() * (canvas.width - 200) + 100;
-            myPlayer.y = Math.random() * (canvas.height - 200) + 100;
-            document.getElementById('hp').innerText = myPlayer.hp;
             document.getElementById('gameover-screen').style.display = 'none';
             if (isMobile) {
                 document.getElementById('mobile-controls').style.display = 'block';
@@ -255,11 +252,20 @@
         socket.on('updateStats', (data) => {
             if (data.victimId === socket.id) {
                 myPlayer.hp = data.victimHp;
+                myPlayer.x = data.victimX;
+                myPlayer.y = data.victimY;
                 document.getElementById('hp').innerText = myPlayer.hp;
+                
                 if (myPlayer.hp <= 0) {
                     isDead = true;
                     document.getElementById('gameover-screen').style.display = 'flex';
                     document.getElementById('mobile-controls').style.display = 'none';
+                } else {
+                    isDead = false;
+                    document.getElementById('gameover-screen').style.display = 'none';
+                    if (isMobile) {
+                        document.getElementById('mobile-controls').style.display = 'block';
+                    }
                 }
             } else if (otherPlayers[data.victimId]) {
                 otherPlayers[data.victimId].hp = data.victimHp;
