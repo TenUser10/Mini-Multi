@@ -193,7 +193,6 @@
             document.getElementById('mode').innerText = t.notSelected;
             document.getElementById('txt-shoot').innerText = t.fire;
 
-            // Ẩn màn hình ngôn ngữ, hiện màn hình chọn thiết bị
             document.getElementById('lang-screen').style.display = 'none';
             document.getElementById('device-screen').style.display = 'flex';
         }
@@ -209,8 +208,17 @@
         }
 
         // --- SOCKET.IO EVENTS ---
-        socket.on('currentPlayers', (players) => { otherPlayers = players; });
-        socket.on('newPlayer', (data) => { otherPlayers[data.id] = data.player; });
+        socket.on('currentPlayers', (players) => {
+            delete players[socket.id]; // Loại bỏ chính mình khỏi danh sách để tránh nhân đôi nhân vật
+            otherPlayers = players;
+        });
+
+        socket.on('newPlayer', (data) => {
+            if (data.id !== socket.id) {
+                otherPlayers[data.id] = data.player;
+            }
+        });
+
         socket.on('playerMoved', (data) => {
             if (otherPlayers[data.id]) {
                 otherPlayers[data.id].x = data.x;
@@ -218,6 +226,7 @@
                 otherPlayers[data.id].angle = data.angle;
             }
         });
+
         socket.on('disconnectPlayer', (id) => { delete otherPlayers[id]; });
         socket.on('bulletFired', (data) => { bullets.push(data); });
 
@@ -225,6 +234,7 @@
         window.addEventListener('mousemove', (e) => {
             if (!isMobile) {
                 myPlayer.angle = Math.atan2(e.clientY - myPlayer.y, e.clientX - myPlayer.x);
+                socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
             }
         });
 
