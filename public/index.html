@@ -35,9 +35,10 @@
             background-color: rgba(0, 0, 0, 0.95);
         }
         .screen h2 {
-            font-size: 24px;
+            font-size: 28px;
             margin-bottom: 20px;
             text-align: center;
+            color: #ff4444;
         }
         .btn-group {
             display: flex;
@@ -59,8 +60,9 @@
         .btn-lang:hover { background-color: #555; }
         .btn-mobile { background-color: #0088cc; }
         .btn-pc { background-color: #4cae4c; }
+        .btn-respawn { background-color: #e91e63; font-size: 18px; padding: 15px 35px; }
         
-        #device-screen { display: none; }
+        #device-screen, #gameover-screen { display: none; }
 
         /* Nút điều khiển di động */
         #mobile-controls {
@@ -114,7 +116,7 @@
 
     <!-- Màn hình chọn Ngôn ngữ -->
     <div id="lang-screen" class="screen">
-        <h2 id="lang-title">Choose your language</h2>
+        <h2 id="lang-title" style="color: #fff;">Choose your language</h2>
         <div class="btn-group">
             <button class="btn btn-lang" onclick="setLanguage('en')">English (Default)</button>
             <button class="btn btn-lang" onclick="setLanguage('vi')">Tiếng Việt</button>
@@ -129,11 +131,17 @@
 
     <!-- Màn hình chọn Thiết bị -->
     <div id="device-screen" class="screen">
-        <h2 id="device-title">What device are you playing on?</h2>
+        <h2 id="device-title" style="color: #fff;">What device are you playing on?</h2>
         <div class="btn-group">
             <button class="btn btn-mobile" onclick="selectDevice('mobile')"><span id="btn-phone">📱 Mobile</span></button>
             <button class="btn btn-pc" onclick="selectDevice('pc')"><span id="btn-computer">💻 Computer</span></button>
         </div>
+    </div>
+
+    <!-- Màn hình Thua / Hồi sinh -->
+    <div id="gameover-screen" class="screen">
+        <h2 id="go-title">YOU DIED</h2>
+        <button class="btn btn-respawn" onclick="respawnPlayer()"><span id="btn-respawn-txt">RESPAWN</span></button>
     </div>
 
     <!-- Giao diện phím ảo di động -->
@@ -163,17 +171,18 @@
         let otherPlayers = {};
         let bullets = [];
         let isMobile = false;
+        let isDead = false;
         let moveVector = { x: 0, y: 0 };
 
         const langData = {
-            en: { langTitle: "Choose your language", deviceTitle: "What device are you playing on?", phone: "📱 Mobile", pc: "💻 Computer", hp: "HP", score: "Score", mode: "Mode", notSelected: "Not selected", mobileMode: "Mobile", pcMode: "Computer", fire: "FIRE" },
-            vi: { langTitle: "Chọn ngôn ngữ của bạn", deviceTitle: "Bạn đang chơi trên thiết bị nào?", phone: "📱 Điện thoại", pc: "💻 Máy tính", hp: "Máu", score: "Điểm", mode: "Chế độ", notSelected: "Chưa chọn", mobileMode: "Điện thoại", pcMode: "Máy tính", fire: "BẮN" },
-            es: { langTitle: "Elige tu idioma", deviceTitle: "¿En qué dispositivo estás jugando?", phone: "📱 Móvil", pc: "💻 Ordenador", hp: "HP", score: "Puntos", mode: "Modo", notSelected: "No seleccionado", mobileMode: "Móvil", pcMode: "Ordenador", fire: "FUEGO" },
-            fr: { langTitle: "Choisissez votre langue", deviceTitle: "Sur quel appareil jouez-vous ?", phone: "📱 Mobile", pc: "💻 Ordinateur", hp: "HP", score: "Score", mode: "Mode", notSelected: "Non sélectionné", mobileMode: "Mobile", pcMode: "Ordinateur", fire: "FEU" },
-            de: { langTitle: "Wähle deine Sprache", deviceTitle: "Auf welchem Gerät spielst du?", phone: "📱 Handy", pc: "💻 Computer", hp: "LP", score: "Punkte", mode: "Modus", notSelected: "Nicht ausgewählt", mobileMode: "Handy", pcMode: "Computer", fire: "FEUER" },
-            ja: { langTitle: "言語を選択してください", deviceTitle: "どのデバイスでプレイしていますか？", phone: "📱 モバイル", pc: "💻 パソコン", hp: "HP", score: "スコア", mode: "モード", notSelected: "未選択", mobileMode: "モバイル", pcMode: "パソコン", fire: "発射" },
-            ko: { langTitle: "언어를 선택하세요", deviceTitle: "어떤 기기로 플레이하고 계신가요?", phone: "📱 모바일", pc: "💻 컴퓨터", hp: "체력", score: "점수", mode: "모드", notSelected: "선택 안됨", mobileMode: "모바일", pcMode: "컴퓨터", fire: "발사" },
-            zh: { langTitle: "选择您的语言", deviceTitle: "您正在使用什么设备游玩？", phone: "📱 手机", pc: "💻 电脑", hp: "生命", score: "得分", mode: "模式", notSelected: "未选择", mobileMode: "手机", pcMode: "电脑", fire: "开火" }
+            en: { langTitle: "Choose your language", deviceTitle: "What device are you playing on?", phone: "📱 Mobile", pc: "💻 Computer", hp: "HP", score: "Score", mode: "Mode", notSelected: "Not selected", mobileMode: "Mobile", pcMode: "Computer", fire: "FIRE", deadTitle: "YOU DIED", respawn: "RESPAWN" },
+            vi: { langTitle: "Chọn ngôn ngữ của bạn", deviceTitle: "Bạn đang chơi trên thiết bị nào?", phone: "📱 Điện thoại", pc: "💻 Máy tính", hp: "Máu", score: "Điểm", mode: "Chế độ", notSelected: "Chưa chọn", mobileMode: "Điện thoại", pcMode: "Máy tính", fire: "BẮN", deadTitle: "BẠN ĐÃ THUA", respawn: "HỒI SINH" },
+            es: { langTitle: "Elige tu idioma", deviceTitle: "¿En qué dispositivo estás jugando?", phone: "📱 Móvil", pc: "💻 Ordenador", hp: "HP", score: "Puntos", mode: "Modo", notSelected: "No seleccionado", mobileMode: "Móvil", pcMode: "Ordenador", fire: "FUEGO", deadTitle: "HAS MUERTO", respawn: "RESPAWN" },
+            fr: { langTitle: "Choisissez votre langue", deviceTitle: "Sur quel appareil jouez-vous ?", phone: "📱 Mobile", pc: "💻 Ordinateur", hp: "HP", score: "Score", mode: "Mode", notSelected: "Non sélectionné", mobileMode: "Mobile", pcMode: "Ordinateur", fire: "FEU", deadTitle: "VOUS ÊTES MORT", respawn: "RESSUSCITER" },
+            de: { langTitle: "Wähle deine Sprache", deviceTitle: "Auf welchem Gerät spielst du?", phone: "📱 Handy", pc: "💻 Computer", hp: "LP", score: "Punkte", mode: "Modus", notSelected: "Nicht ausgewählt", mobileMode: "Handy", pcMode: "Computer", fire: "FEUER", deadTitle: "DU BIST GESTORBEN", respawn: "WIEDERBELEBEN" },
+            ja: { langTitle: "言語を選択してください", deviceTitle: "どのデバイスでプレイしていますか？", phone: "📱 モバイル", pc: "💻 パソコン", hp: "HP", score: "スコア", mode: "モード", notSelected: "未選択", mobileMode: "モバイル", pcMode: "パソコン", fire: "発射", deadTitle: "ゲームオーバー", respawn: "復活する" },
+            ko: { langTitle: "언어를 선택하세요", deviceTitle: "어떤 기기로 플레이하고 계신가요?", phone: "📱 모바일", pc: "💻 컴퓨터", hp: "체력", score: "점수", mode: "모드", notSelected: "선택 안됨", mobileMode: "모바일", pcMode: "컴퓨터", fire: "발사", deadTitle: "사망하셨습니다", respawn: "부활하기" },
+            zh: { langTitle: "选择您的语言", deviceTitle: "您正在使用什么设备游玩？", phone: "📱 手机", pc: "💻 电脑", hp: "生命", score: "得分", mode: "模式", notSelected: "未选择", mobileMode: "手机", pcMode: "电脑", fire: "开火", data: "你输了", deadTitle: "你输了", respawn: "复活" }
         };
 
         let currentLang = 'en';
@@ -191,6 +200,8 @@
             document.getElementById('txt-mode').innerText = t.mode;
             document.getElementById('mode').innerText = t.notSelected;
             document.getElementById('txt-shoot').innerText = t.fire;
+            document.getElementById('go-title').innerText = t.deadTitle;
+            document.getElementById('btn-respawn-txt').innerText = t.respawn;
 
             document.getElementById('lang-screen').style.display = 'none';
             document.getElementById('device-screen').style.display = 'flex';
@@ -201,6 +212,18 @@
             const t = langData[currentLang];
             document.getElementById('mode').innerText = isMobile ? t.mobileMode : t.pcMode;
             document.getElementById('device-screen').style.display = 'none';
+            if (isMobile) {
+                document.getElementById('mobile-controls').style.display = 'block';
+            }
+        }
+
+        function respawnPlayer() {
+            isDead = false;
+            myPlayer.hp = 100;
+            myPlayer.x = Math.random() * (canvas.width - 200) + 100;
+            myPlayer.y = Math.random() * (canvas.height - 200) + 100;
+            document.getElementById('hp').innerText = myPlayer.hp;
+            document.getElementById('gameover-screen').style.display = 'none';
             if (isMobile) {
                 document.getElementById('mobile-controls').style.display = 'block';
             }
@@ -229,13 +252,15 @@
         socket.on('disconnectPlayer', (id) => { delete otherPlayers[id]; });
         socket.on('bulletsUpdate', (serverBullets) => { bullets = serverBullets; });
 
-        // Cập nhật Máu & Điểm khi có va chạm
         socket.on('updateStats', (data) => {
             if (data.victimId === socket.id) {
                 myPlayer.hp = data.victimHp;
-                myPlayer.x = data.victimX;
-                myPlayer.y = data.victimY;
                 document.getElementById('hp').innerText = myPlayer.hp;
+                if (myPlayer.hp <= 0) {
+                    isDead = true;
+                    document.getElementById('gameover-screen').style.display = 'flex';
+                    document.getElementById('mobile-controls').style.display = 'none';
+                }
             } else if (otherPlayers[data.victimId]) {
                 otherPlayers[data.victimId].hp = data.victimHp;
                 otherPlayers[data.victimId].x = data.victimX;
@@ -250,20 +275,20 @@
 
         // Điều khiển PC
         window.addEventListener('mousemove', (e) => {
-            if (!isMobile) {
+            if (!isMobile && !isDead) {
                 myPlayer.angle = Math.atan2(e.clientY - myPlayer.y, e.clientX - myPlayer.x);
                 socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
             }
         });
 
         window.addEventListener('click', () => {
-            if (!isMobile && document.getElementById('device-screen').style.display === 'none' && document.getElementById('lang-screen').style.display === 'none') {
+            if (!isMobile && !isDead && document.getElementById('device-screen').style.display === 'none' && document.getElementById('lang-screen').style.display === 'none') {
                 fireBullet();
             }
         });
 
         window.addEventListener('keydown', (e) => {
-            if (!isMobile) {
+            if (!isMobile && !isDead) {
                 let speed = 6;
                 if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') myPlayer.y -= speed;
                 if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') myPlayer.y += speed;
@@ -279,12 +304,14 @@
         let joystickTouchId = null;
 
         joystickBase.addEventListener('touchstart', (e) => {
+            if (isDead) return;
             const touch = e.changedTouches[0];
             joystickTouchId = touch.identifier;
             updateJoystick(touch);
         });
 
         joystickBase.addEventListener('touchmove', (e) => {
+            if (isDead) return;
             for (let i = 0; i < e.changedTouches.length; i++) {
                 if (e.changedTouches[i].identifier === joystickTouchId) {
                     updateJoystick(e.changedTouches[i]);
@@ -321,7 +348,7 @@
 
         document.getElementById('shoot-btn').addEventListener('touchstart', (e) => {
             e.preventDefault();
-            fireBullet();
+            if (!isDead) fireBullet();
         });
 
         function fireBullet() {
@@ -354,12 +381,22 @@
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (isMobile && (moveVector.x !== 0 || moveVector.y !== 0)) {
-                let speed = 5;
-                myPlayer.x += moveVector.x * speed;
-                myPlayer.y += moveVector.y * speed;
-                myPlayer.angle = Math.atan2(moveVector.y, moveVector.x);
-                socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
+            if (!isDead) {
+                if (isMobile && (moveVector.x !== 0 || moveVector.y !== 0)) {
+                    let speed = 5;
+                    myPlayer.x += moveVector.x * speed;
+                    myPlayer.y += moveVector.y * speed;
+                    myPlayer.angle = Math.atan2(moveVector.y, moveVector.x);
+                    socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
+                }
+
+                // Vẽ bản thân
+                drawGun(myPlayer.x, myPlayer.y, myPlayer.angle);
+                ctx.fillStyle = '#4CAF50';
+                ctx.beginPath();
+                ctx.arc(myPlayer.x, myPlayer.y, 15, 0, Math.PI * 2);
+                ctx.fill();
+                drawHPBar(myPlayer.x, myPlayer.y, myPlayer.hp);
             }
 
             // Vẽ đạn
@@ -370,7 +407,7 @@
                 ctx.fill();
             }
 
-            // Vẽ người chơi khác + Thanh máu trên đầu
+            // Vẽ người chơi khác
             Object.keys(otherPlayers).forEach((id) => {
                 let p = otherPlayers[id];
                 drawGun(p.x, p.y, p.angle || 0);
@@ -380,14 +417,6 @@
                 ctx.fill();
                 drawHPBar(p.x, p.y, p.hp !== undefined ? p.hp : 100);
             });
-
-            // Vẽ bản thân + Thanh máu trên đầu
-            drawGun(myPlayer.x, myPlayer.y, myPlayer.angle);
-            ctx.fillStyle = '#4CAF50';
-            ctx.beginPath();
-            ctx.arc(myPlayer.x, myPlayer.y, 15, 0, Math.PI * 2);
-            ctx.fill();
-            drawHPBar(myPlayer.x, myPlayer.y, myPlayer.hp);
 
             requestAnimationFrame(gameLoop);
         }
