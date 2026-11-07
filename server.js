@@ -29,7 +29,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('playerMovement', (movementData) => {
-        if (players[socket.id]) {
+        if (players[socket.id] && players[socket.id].hp > 0) {
             players[socket.id].x = movementData.x;
             players[socket.id].y = movementData.y;
             players[socket.id].angle = movementData.angle;
@@ -44,13 +44,33 @@ io.on('connection', (socket) => {
     });
 
     socket.on('shoot', (bulletData) => {
-        bullets.push({
-            ownerId: socket.id,
-            x: bulletData.x,
-            y: bulletData.y,
-            dx: bulletData.dx,
-            dy: bulletData.dy
-        });
+        if (players[socket.id] && players[socket.id].hp > 0) {
+            bullets.push({
+                ownerId: socket.id,
+                x: bulletData.x,
+                y: bulletData.y,
+                dx: bulletData.dx,
+                dy: bulletData.dy
+            });
+        }
+    });
+
+    // Nhận sự kiện hồi sinh từ client khi bấm nút
+    socket.on('respawn', () => {
+        if (players[socket.id]) {
+            players[socket.id].hp = 100;
+            players[socket.id].x = Math.random() * 600 + 100;
+            players[socket.id].y = Math.random() * 400 + 100;
+
+            io.emit('updateStats', {
+                victimId: socket.id,
+                victimHp: players[socket.id].hp,
+                victimX: players[socket.id].x,
+                victimY: players[socket.id].y,
+                shooterId: null,
+                shooterScore: players[socket.id].score
+            });
+        }
     });
 
     socket.on('disconnect', () => {
@@ -69,49 +89,40 @@ setInterval(() => {
 
         let bulletHit = false;
 
-        // Kiểm tra va chạm giữa đạn b và từng người chơi
         Object.keys(players).forEach((id) => {
             if (id !== b.ownerId && !bulletHit) {
                 let p = players[id];
-                let dist = Math.hypot(p.x - b.x, p.y - b.y);
+                // Chỉ tính va chạm nếu người chơi đó còn sống (hp > 0)
+                if (p.hp > 0) {
+                    let dist = Math.hypot(p.x - b.x, p.y - b.y);
 
-                // Bán kính nhân vật là 15px
-                if (dist < 15) {
-                    bulletHit = true;
-                    p.hp -= 10;
+                    if (dist < 15) {
+                        bulletHit = true;
+                        p.hp -= 10;
+                        if (p.hp < 0) p.hp = 0;
 
-                    // Cộng điểm cho người bắn
-                    if (players[b.ownerId]) {
-                        players[b.ownerId].score += 10;
+                        if (players[b.ownerId]) {
+                            players[b.ownerId].score += 10;
+                        }
+
+                        io.emit('updateStats', {
+                            victimId: id,
+                            victimHp: p.hp,
+                            victimX: p.x,
+                            victimY: p.y,
+                            shooterId: b.ownerId,
+                            shooterScore: players[b.ownerId] ? players[b.ownerId].score : 0
+                        });
                     }
-
-                    // Nếu hết máu thì hồi sinh lại ngẫu nhiên
-                    if (p.hp <= 0) {
-                        p.hp = 100;
-                        p.x = Math.random() * 600 + 100;
-                        p.y = Math.random() * 400 + 100;
-                    }
-
-                    // Gửi thông tin máu và điểm số mới cho tất cả các máy
-                    io.emit('updateStats', {
-                        victimId: id,
-                        victimHp: p.hp,
-                        victimX: p.x,
-                        victimY: p.y,
-                        shooterId: b.ownerId,
-                        shooterScore: players[b.ownerId] ? players[b.ownerId].score : 0
-                    });
                 }
             }
         });
 
-        // Xóa đạn khi va chạm hoặc bay quá xa
         if (bulletHit || b.x < 0 || b.x > 3000 || b.y < 0 || b.y > 3000) {
             bullets.splice(i, 1);
         }
     }
 
-    // Phát vị trí đạn thời gian thực
     io.emit('bulletsUpdate', bullets);
 }, 1000 / 60);
 
