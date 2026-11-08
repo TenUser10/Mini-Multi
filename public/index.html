@@ -212,6 +212,7 @@
         let myPlayer = { name: "Player", color: "#4CAF50", x: canvas.width / 2, y: canvas.height / 2, hp: 100, score: 0, angle: 0 };
         let otherPlayers = {};
         let bullets = [];
+        let weapons = []; // Danh sách vũ khí dưới sàn
         let isMobile = false;
         let isDead = false;
         let moveVector = { x: 0, y: 0 };
@@ -265,7 +266,6 @@
 
         function submitColor() {
             myPlayer.color = document.getElementById('player-color-input').value;
-            // Gửi thông tin tên và màu sắc lên server
             socket.emit('updatePlayerInfo', { name: myPlayer.name, color: myPlayer.color });
 
             document.getElementById('color-screen').style.display = 'none';
@@ -292,9 +292,13 @@
         }
 
         // --- SOCKET.IO EVENTS ---
-        socket.on('currentPlayers', (players) => {
-            delete players[socket.id];
-            otherPlayers = players;
+        socket.on('currentPlayers', (serverPlayers) => {
+            delete serverPlayers[socket.id];
+            otherPlayers = serverPlayers;
+        });
+
+        socket.on('currentWeapons', (serverWeapons) => {
+            weapons = serverWeapons;
         });
 
         socket.on('newPlayer', (data) => {
@@ -313,6 +317,18 @@
 
         socket.on('disconnectPlayer', (id) => { delete otherPlayers[id]; });
         socket.on('bulletsUpdate', (serverBullets) => { bullets = serverBullets; });
+
+        // Khi có người nhặt được vũ khí
+        socket.on('weaponCollected', (data) => {
+            weapons = weapons.filter(w => w.id !== data.weaponId);
+            // Nếu mình là người nhặt được, cộng điểm trực tiếp lên giao diện
+            if (data.collectorId === socket.id) {
+                myPlayer.score = data.newScore;
+                document.getElementById('score').innerText = myPlayer.score;
+            } else if (otherPlayers[data.collectorId]) {
+                otherPlayers[data.collectorId].score = data.newScore;
+            }
+        });
 
         socket.on('updateStats', (data) => {
             if (data.victimId === socket.id) {
@@ -461,6 +477,7 @@
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // Gửi liên tục tọa độ khi di chuyển để server check nhặt súng
             if (!isDead) {
                 if (isMobile && (moveVector.x !== 0 || moveVector.y !== 0)) {
                     let speed = 5;
@@ -470,13 +487,22 @@
                     socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
                 }
 
-                // Vẽ bản thân với màu sắc người chơi đã chọn
+                // Vẽ bản thân
                 drawGun(myPlayer.x, myPlayer.y, myPlayer.angle);
                 ctx.fillStyle = myPlayer.color;
                 ctx.beginPath();
                 ctx.arc(myPlayer.x, myPlayer.y, 15, 0, Math.PI * 2);
                 ctx.fill();
                 drawHPBar(myPlayer.x, myPlayer.y, myPlayer.hp, myPlayer.name);
+            }
+
+            // Vẽ các hộp vũ khí dưới sàn (Màu cam sáng)
+            for (let w of weapons) {
+                ctx.fillStyle = '#ff9800';
+                ctx.shadowColor = '#ff9800';
+                ctx.shadowBlur = 10;
+                ctx.fillRect(w.x - 8, w.y - 8, 16, 16);
+                ctx.shadowBlur = 0; // Tắt hiệu ứng bóng cho các vật thể khác
             }
 
             // Vẽ đạn

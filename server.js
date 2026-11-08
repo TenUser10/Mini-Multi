@@ -8,11 +8,26 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 let players = {};
 let bullets = [];
+let weapons = []; // Danh sách vũ khí dưới sàn
+
+// Hàm tạo ngẫu nhiên một món vũ khí trên bản đồ
+function spawnWeapon() {
+    if (weapons.length < 5) { // Tối đa 5 vũ khí xuất hiện cùng lúc trên sàn
+        weapons.push({
+            id: Math.random().toString(36).substring(2, 9),
+            x: Math.random() * 1200 + 100,
+            y: Math.random() * 700 + 100,
+            type: 'powerup' // Loại vũ khí/vật phẩm tăng sức mạnh
+        });
+    }
+}
+
+// Cứ mỗi 5 giây sẽ rơi ra vũ khí mới nếu chưa đủ số lượng
+setInterval(spawnWeapon, 5000);
 
 io.on('connection', (socket) => {
     console.log(`Người chơi kết nối: ${socket.id}`);
 
-    // Khởi tạo thông tin cơ bản cho player
     players[socket.id] = {
         name: "Player",
         x: Math.random() * 600 + 100,
@@ -20,18 +35,17 @@ io.on('connection', (socket) => {
         angle: 0,
         hp: 100,
         score: 0,
-        color: '#4CAF50' // Mặc định
+        color: '#4CAF50'
     };
 
     socket.emit('currentPlayers', players);
+    socket.emit('currentWeapons', weapons); // Gửi danh sách vũ khí hiện có cho người mới vào
 
-    // Lắng nghe sự kiện cập nhật thông tin (Tên và Màu sắc) từ client
     socket.on('updatePlayerInfo', (data) => {
         if (players[socket.id]) {
             if (data.name) players[socket.id].name = data.name;
             if (data.color) players[socket.id].color = data.color;
 
-            // Báo cho các người chơi khác biết thông tin mới của player này
             socket.broadcast.emit('newPlayer', {
                 id: socket.id,
                 player: players[socket.id]
@@ -51,6 +65,24 @@ io.on('connection', (socket) => {
                 y: players[socket.id].y,
                 angle: players[socket.id].angle
             });
+
+            // Kiểm tra va chạm nếu người chơi đi nhặt vũ khí dưới sàn
+            for (let i = weapons.length - 1; i >= 0; i--) {
+                let w = weapons[i];
+                let dist = Math.hypot(players[socket.id].x - w.x, players[socket.id].y - w.y);
+                if (dist < 25) { // Nhặt được vũ khí
+                    players[socket.id].score += 50; // Thưởng 50 điểm khi nhặt súng
+                    weapons.splice(i, 1); // Xóa vũ khí khỏi sàn
+
+                    // Báo về cho tất cả mọi người cập nhật điểm và vũ khí biến mất
+                    io.emit('weaponCollected', {
+                        weaponId: w.id,
+                        collectorId: socket.id,
+                        newScore: players[socket.id].score
+                    });
+                    break;
+                }
+            }
         }
     });
 
@@ -90,7 +122,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// Game Loop trên Server
+// Game Loop Server
 setInterval(() => {
     for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];
