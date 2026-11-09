@@ -21,28 +21,131 @@
             left: 10px;
             pointer-events: none;
         }
+        #menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(20, 20, 20, 0.95);
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0,255,0,0.3);
+            border: 1px solid #333;
+        }
+        #menu input, #menu select {
+            margin: 10px 0;
+            padding: 8px;
+            width: 200px;
+            background: #222;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 5px;
+        }
+        #menu button {
+            padding: 10px 20px;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        #menu button:hover {
+            background: #00cc00;
+        }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <div>Máu: 100</div>
-        <div>Điểm: 0</div>
-        <div>Chế độ: Máy tính</div>
+    <div id="menu">
+        <h2 id="ui-title">Mini-Multi Setup</h2>
+        <div>
+            <label id="lbl-lang">Ngôn ngữ:</label><br>
+            <select id="langSelect" onchange="changeLanguage()">
+                <option value="vi">Tiếng Việt</option>
+                <option value="en">English</option>
+            </select>
+        </div>
+        <div>
+            <label id="lbl-name">Tên nhân vật:</label><br>
+            <input type="text" id="playerName" value="TenUser10">
+        </div>
+        <div>
+            <label id="lbl-color">Màu sắc:</label><br>
+            <input type="color" id="playerColor" value="#00ff00" style="width: 100px; height: 35px; padding: 0;">
+        </div>
+        <div>
+            <label id="lbl-device">Chế độ thiết bị:</label><br>
+            <select id="deviceSelect">
+                <option value="pc">Máy tính (PC)</option>
+                <option value="mobile">Điện thoại (Mobile)</option>
+            </select>
+        </div>
+        <br>
+        <button id="btn-start" onclick="startGame()">VÀO GAME</button>
     </div>
-    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui" style="display: none;">
+        <div id="txt-hp">Máu: 100</div>
+        <div id="txt-score">Điểm: 0</div>
+        <div id="txt-device">Chế độ: Máy tính</div>
+    </div>
+    <canvas id="gameCanvas" style="display: none;"></canvas>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
+        const translations = {
+            vi: {
+                title: "Cấu hình Mini-Multi",
+                lang: "Ngôn ngữ:",
+                name: "Tên nhân vật:",
+                color: "Màu sắc:",
+                device: "Chế độ thiết bị:",
+                pc: "Máy tính (PC)",
+                mobile: "Điện thoại (Mobile)",
+                start: "VÀO GAME",
+                hp: "Máu",
+                score: "Điểm",
+                mode: "Chế độ"
+            },
+            en: {
+                title: "Mini-Multi Setup",
+                lang: "Language:",
+                name: "Player Name:",
+                color: "Color:",
+                device: "Device Mode:",
+                pc: "PC",
+                mobile: "Mobile",
+                start: "START GAME",
+                hp: "HP",
+                score: "Score",
+                mode: "Mode"
+            }
+        };
+
+        function changeLanguage() {
+            const lang = document.getElementById('langSelect').value;
+            const t = translations[lang];
+            document.getElementById('ui-title').innerText = t.title;
+            document.getElementById('lbl-lang').innerText = t.lang;
+            document.getElementById('lbl-name').innerText = t.name;
+            document.getElementById('lbl-color').innerText = t.color;
+            document.getElementById('lbl-device').innerText = t.device;
+            document.getElementById('btn-start').innerText = t.start;
+            
+            const deviceSelect = document.getElementById('deviceSelect');
+            deviceSelect.options[0].text = t.pc;
+            deviceSelect.options[1].text = t.mobile;
+        }
+
         const socket = io();
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        const player = {
-            x: canvas.width / 2,
-            y: canvas.height / 2,
+        let player = {
+            x: 0,
+            y: 0,
             radius: 15,
             color: '#00ff00',
             speed: 4,
@@ -54,13 +157,40 @@
         window.addEventListener('keydown', (e) => keys[e.key] = true);
         window.addEventListener('keyup', (e) => keys[e.key] = false);
 
+        function startGame() {
+            const nameInput = document.getElementById('playerName').value;
+            const colorInput = document.getElementById('playerColor').value;
+            const deviceInput = document.getElementById('deviceSelect').value;
+            const langInput = document.getElementById('langSelect').value;
+
+            if (nameInput.trim() !== "") {
+                player.name = nameInput;
+            }
+            player.color = colorInput;
+
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('ui').style.display = 'block';
+            canvas.style.display = 'block';
+
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+
+            const t = translations[langInput];
+            document.getElementById('txt-device').innerText = `${t.mode}: ${deviceInput === 'pc' ? t.pc : t.mobile}`;
+
+            loop();
+        }
+
         function update() {
             if (keys['w'] || keys['W'] || keys['ArrowUp']) player.y -= player.speed;
             if (keys['s'] || keys['S'] || keys['ArrowDown']) player.y += player.speed;
             if (keys['a'] || keys['A'] || keys['ArrowLeft']) player.x -= player.speed;
             if (keys['d'] || keys['D'] || keys['ArrowRight']) player.x += player.speed;
 
-            socket.emit('player-move', { x: player.x, y: player.y });
+            socket.emit('player-move', { x: player.x, y: player.y, name: player.name, color: player.color });
         }
 
         function draw() {
@@ -82,8 +212,6 @@
             draw();
             requestAnimationFrame(loop);
         }
-
-        loop();
     </script>
 </body>
 </html>
