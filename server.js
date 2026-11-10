@@ -1,141 +1,527 @@
-const express = require('express');
-const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
-const path = require('path');
-
-app.use(express.static(path.join(__dirname, 'public')));
-
-let players = {};
-let bullets = [];
-
-io.on('connection', (socket) => {
-    console.log(`Người chơi kết nối: ${socket.id}`);
-
-    // Khởi tạo thông tin cơ bản cho player
-    players[socket.id] = {
-        name: "Player",
-        x: Math.random() * 600 + 100,
-        y: Math.random() * 400 + 100,
-        angle: 0,
-        hp: 100,
-        score: 0,
-        color: '#4CAF50' // Mặc định
-    };
-
-    socket.emit('currentPlayers', players);
-
-    // Lắng nghe sự kiện cập nhật thông tin (Tên và Màu sắc) từ client
-    socket.on('updatePlayerInfo', (data) => {
-        if (players[socket.id]) {
-            if (data.name) players[socket.id].name = data.name;
-            if (data.color) players[socket.id].color = data.color;
-
-            // Báo cho các người chơi khác biết thông tin mới của player này
-            socket.broadcast.emit('newPlayer', {
-                id: socket.id,
-                player: players[socket.id]
-            });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mini-Multi Shooter Game</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
         }
-    });
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 14px;
+            color: #888;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .screen {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            background-color: rgba(0, 0, 0, 0.95);
+        }
+        .screen h2 {
+            font-size: 28px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #fff;
+        }
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            max-width: 600px;
+        }
+        .btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #fff;
+        }
+        .btn-lang { background-color: #333; border: 1px solid #555; }
+        .btn-lang:hover { background-color: #555; }
+        .btn-mobile { background-color: #0088cc; }
+        .btn-pc { background-color: #4cae4c; }
+        .btn-submit { background-color: #ff9800; }
+        .btn-respawn { background-color: #e91e63; font-size: 18px; padding: 15px 35px; }
+        
+        .name-input {
+            padding: 12px 20px;
+            font-size: 18px;
+            border-radius: 8px;
+            border: 1px solid #555;
+            background-color: #222;
+            color: #fff;
+            outline: none;
+            width: 280px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
 
-    socket.on('playerMovement', (movementData) => {
-        if (players[socket.id] && players[socket.id].hp > 0) {
-            players[socket.id].x = movementData.x;
-            players[socket.id].y = movementData.y;
-            players[socket.id].angle = movementData.angle;
+        .color-picker-input {
+            width: 80px;
+            height: 50px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: none;
+            margin-bottom: 20px;
+        }
+
+        #name-screen, #color-screen, #device-screen, #gameover-screen { display: none; }
+
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 15;
+        }
+        #joystick-base {
+            position: absolute;
+            bottom: 40px; left: 40px;
+            width: 120px; height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            pointer-events: auto;
+        }
+        #joystick-stick {
+            position: absolute;
+            top: 35px; left: 35px;
+            width: 50px; height: 50px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+        }
+        #shoot-btn {
+            position: absolute;
+            bottom: 50px; right: 50px;
+            width: 90px; height: 90px;
+            background: rgba(255, 68, 68, 0.7);
+            border: 2px solid #ff4444;
+            border-radius: 50%;
+            color: #fff;
+            font-weight: bold;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+        }
+        #dash-btn {
+            position: absolute;
+            bottom: 160px; right: 50px;
+            width: 70px; height: 70px;
+            background: rgba(0, 188, 212, 0.7);
+            border: 2px solid #00bcd4;
+            border-radius: 50%;
+            color: #fff;
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+        }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+    <div id="info">
+        <span id="txt-hp">HP</span>: <span id="hp">100</span><br>
+        <span id="txt-score">Score</span>: <span id="score">0</span><br>
+        <span id="txt-mode">Mode</span>: <span id="mode">Not selected</span>
+    </div>
+
+    <div id="lang-screen" class="screen">
+        <h2 id="lang-title">Choose your language</h2>
+        <div class="btn-group">
+            <button class="btn btn-lang" onclick="setLanguage('en')">English (Default)</button>
+            <button class="btn btn-lang" onclick="setLanguage('vi')">Tiếng Việt</button>
+            <button class="btn btn-lang" onclick="setLanguage('es')">Español</button>
+            <button class="btn btn-lang" onclick="setLanguage('fr')">Français</button>
+            <button class="btn btn-lang" onclick="setLanguage('de')">Deutsch</button>
+            <button class="btn btn-lang" onclick="setLanguage('ja')">日本語</button>
+            <button class="btn btn-lang" onclick="setLanguage('ko')">한국어</button>
+            <button class="btn btn-lang" onclick="setLanguage('zh')">中文</button>
+        </div>
+    </div>
+
+    <div id="name-screen" class="screen">
+        <h2 id="name-title">What is your name?</h2>
+        <input type="text" id="player-name-input" class="name-input" placeholder="Enter name..." maxlength="15">
+        <div>
+            <button class="btn btn-submit" onclick="submitName()"><span id="btn-next-name">Next</span></button>
+        </div>
+    </div>
+
+    <div id="color-screen" class="screen">
+        <h2 id="color-title">Choose your character color</h2>
+        <input type="color" id="player-color-input" class="color-picker-input" value="#4CAF50">
+        <div>
+            <button class="btn btn-submit" onclick="submitColor()"><span id="btn-next-color">Next</span></button>
+        </div>
+    </div>
+
+    <div id="device-screen" class="screen">
+        <h2 id="device-title">What device are you playing on?</h2>
+        <div class="btn-group">
+            <button class="btn btn-mobile" onclick="selectDevice('mobile')"><span id="btn-phone">📱 Mobile</span></button>
+            <button class="btn btn-pc" onclick="selectDevice('pc')"><span id="btn-computer">💻 Computer</span></button>
+        </div>
+    </div>
+
+    <div id="gameover-screen" class="screen" style="background-color: rgba(0,0,0,0.95);">
+        <h2 id="go-title" style="color: #ff4444;">YOU DIED</h2>
+        <button class="btn btn-respawn" onclick="respawnPlayer()"><span id="btn-respawn-txt">RESPAWN</span></button>
+    </div>
+
+    <div id="mobile-controls">
+        <div id="joystick-base">
+            <div id="joystick-stick"></div>
+        </div>
+        <div id="shoot-btn"><span id="txt-shoot">FIRE</span></div>
+        <div id="dash-btn">DASH</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        let myPlayer = { name: "Player", color: "#4CAF50", x: canvas.width / 2, y: canvas.height / 2, hp: 100, score: 0, angle: 0 };
+        let otherPlayers = {};
+        let bullets = [];
+        let isMobile = false;
+        let isDead = false;
+        let moveVector = { x: 0, y: 0 };
+
+        let lastDashTime = 0;
+        const DASH_COOLDOWN = 5000;
+
+        const langData = {
+            en: { langTitle: "Choose your language", nameTitle: "What is your name?", namePlaceholder: "Enter your name...", nextBtn: "Next", colorTitle: "Choose your character color", deviceTitle: "What device are you playing on?", phone: "📱 Mobile", pc: "💻 Computer", hp: "HP", score: "Score", mode: "Mode", notSelected: "Not selected", mobileMode: "Mobile", pcMode: "Computer", fire: "FIRE", deadTitle: "YOU DIED", respawn: "RESPAWN" },
+            vi: { langTitle: "Chọn ngôn ngữ của bạn", nameTitle: "Bạn muốn đặt tên là gì?", namePlaceholder: "Nhập tên của bạn...", nextBtn: "Tiếp theo", colorTitle: "Chọn màu sắc nhân vật của bạn", deviceTitle: "Bạn đang chơi trên thiết bị nào?", phone: "📱 Điện thoại", pc: "💻 Máy tính", hp: "Máu", score: "Điểm", mode: "Chế độ", notSelected: "Chưa chọn", mobileMode: "Điện thoại", pcMode: "Máy tính", fire: "BẮN", deadTitle: "BẠN ĐÃ THUA", respawn: "HỒI SINH" },
+            es: { langTitle: "Elige tu idioma", nameTitle: "¿Cómo te llamas?", namePlaceholder: "Ingresa tu nombre...", nextBtn: "Siguiente", colorTitle: "Elige el color de tu personaje", deviceTitle: "¿En qué dispositivo estás jugando?", phone: "📱 Móvil", pc: "💻 Ordenador", hp: "HP", score: "Puntos", mode: "Modo", notSelected: "No seleccionado", mobileMode: "Móvil", pcMode: "Ordenador", fire: "FUEGO", deadTitle: "HAS MUERTO", respawn: "RESPAWN" },
+            fr: { langTitle: "Choisissez votre langue", nameTitle: "Quel est votre nom ?", namePlaceholder: "Entrez votre nom...", nextBtn: "Suivant", colorTitle: "Choisissez la couleur de votre personnage", deviceTitle: "Sur quel appareil jouez-vous ?", phone: "📱 Mobile", pc: "💻 Ordinateur", hp: "HP", score: "Score", mode: "Mode", notSelected: "Non sélectionné", mobileMode: "Mobile", pcMode: "Ordinateur", fire: "FEU", deadTitle: "VOUS ÊTES MORT", respawn: "RESSUSCITER" },
+            de: { langTitle: "Wähle deine Sprache", nameTitle: "Wie heißt du?", namePlaceholder: "Gib deinen Namen ein...", nextBtn: "Weiter", colorTitle: "Wähle deine Charakterfarbe", deviceTitle: "Auf welchem Gerät spielst du?", phone: "📱 Handy", pc: "💻 Computer", hp: "LP", score: "Punkte", mode: "Modus", notSelected: "Nicht ausgewählt", mobileMode: "Handy", pcMode: "Computer", fire: "FEUER", deadTitle: "DU BIST GESTORBEN", respawn: "WIEDERBELEBEN" },
+            ja: { langTitle: "言語を選択してください", nameTitle: "あなたの名前は何ですか？", namePlaceholder: "名前を入力...", nextBtn: "次へ", colorTitle: "キャラクターの色を選んでください", deviceTitle: "どのデバイスでプレイしていますか？", phone: "📱 モバイル", pc: "💻 パソコン", hp: "HP", score: "スコア", mode: "モード", notSelected: "未選択", mobileMode: "モバイル", pcMode: "パソコン", fire: "発射", deadTitle: "ゲームオーバー", respawn: "復活する" },
+            ko: { langTitle: "언어를 선택하세요", nameTitle: "이름이 무엇인가요?", namePlaceholder: "이름 입력...", nextBtn: "다음", colorTitle: "캐릭터 색상을 선택하세요", deviceTitle: "어떤 기기로 플레이하고 계신가요?", phone: "📱 모바일", pc: "💻 컴퓨터", hp: "체력", score: "점수", mode: "모드", notSelected: "선택 안됨", mobileMode: "모바일", pcMode: "컴퓨터", fire: "발사", deadTitle: "사망하셨습니다", respawn: "부활하기" },
+            zh: { langTitle: "选择您的语言", nameTitle: "您叫什么名字？", namePlaceholder: "输入您的名字...", nextBtn: "下一步", colorTitle: "选择您的角色颜色", deviceTitle: "您正在使用什么设备游玩？", phone: "📱 手机", pc: "💻 电脑", hp: "生命", score: "得分", mode: "模式", notSelected: "未选择", mobileMode: "手机", pcMode: "电脑", fire: "开火", deadTitle: "你输了", respawn: "复活" }
+        };
+
+        let currentLang = 'en';
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            const t = langData[lang];
             
-            socket.broadcast.emit('playerMoved', {
-                id: socket.id,
-                x: players[socket.id].x,
-                y: players[socket.id].y,
-                angle: players[socket.id].angle
-            });
+            document.getElementById('lang-title').innerText = t.langTitle;
+            document.getElementById('name-title').innerText = t.nameTitle;
+            document.getElementById('player-name-input').placeholder = t.namePlaceholder;
+            document.getElementById('btn-next-name').innerText = t.nextBtn;
+            document.getElementById('color-title').innerText = t.colorTitle;
+            document.getElementById('btn-next-color').innerText = t.nextBtn;
+            document.getElementById('device-title').innerText = t.deviceTitle;
+            document.getElementById('btn-phone').innerText = t.phone;
+            document.getElementById('btn-computer').innerText = t.pc;
+            document.getElementById('txt-hp').innerText = t.hp;
+            document.getElementById('txt-score').innerText = t.score;
+            document.getElementById('txt-mode').innerText = t.mode;
+            document.getElementById('mode').innerText = t.notSelected;
+            document.getElementById('txt-shoot').innerText = t.fire;
+            document.getElementById('go-title').innerText = t.deadTitle;
+            document.getElementById('btn-respawn-txt').innerText = t.respawn;
+
+            document.getElementById('lang-screen').style.display = 'none';
+            document.getElementById('name-screen').style.display = 'flex';
         }
-    });
 
-    socket.on('shoot', (bulletData) => {
-        if (players[socket.id] && players[socket.id].hp > 0) {
-            bullets.push({
-                ownerId: socket.id,
-                x: bulletData.x,
-                y: bulletData.y,
-                dx: bulletData.dx,
-                dy: bulletData.dy
-            });
+        function submitName() {
+            const inputVal = document.getElementById('player-name-input').value.trim();
+            if (inputVal !== "") {
+                myPlayer.name = inputVal;
+            }
+            document.getElementById('name-screen').style.display = 'none';
+            document.getElementById('color-screen').style.display = 'flex';
         }
-    });
 
-    socket.on('respawn', () => {
-        if (players[socket.id]) {
-            players[socket.id].hp = 100;
-            players[socket.id].x = Math.random() * 600 + 100;
-            players[socket.id].y = Math.random() * 400 + 100;
+        function submitColor() {
+            myPlayer.color = document.getElementById('player-color-input').value;
+            socket.emit('updatePlayerInfo', { name: myPlayer.name, color: myPlayer.color });
 
-            io.emit('updateStats', {
-                victimId: socket.id,
-                victimHp: players[socket.id].hp,
-                victimX: players[socket.id].x,
-                victimY: players[socket.id].y,
-                shooterId: null,
-                shooterScore: players[socket.id].score
-            });
+            document.getElementById('color-screen').style.display = 'none';
+            document.getElementById('device-screen').style.display = 'flex';
         }
-    });
 
-    socket.on('disconnect', () => {
-        console.log(`Người chơi ngắt kết nối: ${socket.id}`);
-        delete players[socket.id];
-        io.emit('disconnectPlayer', socket.id);
-    });
-});
+        function selectDevice(mode) {
+            isMobile = (mode === 'mobile');
+            const t = langData[currentLang];
+            document.getElementById('mode').innerText = isMobile ? t.mobileMode : t.pcMode;
+            document.getElementById('device-screen').style.display = 'none';
+            if (isMobile) {
+                document.getElementById('mobile-controls').style.display = 'block';
+            }
+        }
 
-// Game Loop trên Server
-setInterval(() => {
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        let b = bullets[i];
-        b.x += b.dx;
-        b.y += b.dy;
+        function respawnPlayer() {
+            socket.emit('respawn');
+            isDead = false;
+            document.getElementById('gameover-screen').style.display = 'none';
+            if (isMobile) {
+                document.getElementById('mobile-controls').style.display = 'block';
+            }
+        }
 
-        let bulletHit = false;
+        function triggerDash() {
+            const now = Date.now();
+            if (now - lastDashTime >= DASH_COOLDOWN && !isDead) {
+                lastDashTime = now;
+                socket.emit('dash');
+            }
+        }
 
-        Object.keys(players).forEach((id) => {
-            if (id !== b.ownerId && !bulletHit) {
-                let p = players[id];
-                if (p.hp > 0) {
-                    let dist = Math.hypot(p.x - b.x, p.y - b.y);
+        socket.on('currentPlayers', (players) => {
+            delete players[socket.id];
+            otherPlayers = players;
+        });
 
-                    if (dist < 15) {
-                        bulletHit = true;
-                        p.hp -= 10;
-                        if (p.hp < 0) p.hp = 0;
+        socket.on('newPlayer', (data) => {
+            if (data.id !== socket.id) {
+                otherPlayers[data.id] = data.player;
+            }
+        });
 
-                        if (players[b.ownerId]) {
-                            players[b.ownerId].score += 10;
-                        }
+        socket.on('playerMoved', (data) => {
+            if (otherPlayers[data.id]) {
+                otherPlayers[data.id].x = data.x;
+                otherPlayers[data.id].y = data.y;
+                otherPlayers[data.id].angle = data.angle;
+            }
+        });
 
-                        io.emit('updateStats', {
-                            victimId: id,
-                            victimHp: p.hp,
-                            victimX: p.x,
-                            victimY: p.y,
-                            shooterId: b.ownerId,
-                            shooterScore: players[b.ownerId] ? players[b.ownerId].score : 0
-                        });
+        socket.on('disconnectPlayer', (id) => { delete otherPlayers[id]; });
+        socket.on('bulletsUpdate', (serverBullets) => { bullets = serverBullets; });
+
+        socket.on('updateStats', (data) => {
+            if (data.victimId === socket.id) {
+                myPlayer.hp = data.victimHp;
+                myPlayer.x = data.victimX;
+                myPlayer.y = data.victimY;
+                document.getElementById('hp').innerText = myPlayer.hp;
+                
+                if (myPlayer.hp <= 0) {
+                    isDead = true;
+                    document.getElementById('gameover-screen').style.display = 'flex';
+                    document.getElementById('mobile-controls').style.display = 'none';
+                } else {
+                    isDead = false;
+                    document.getElementById('gameover-screen').style.display = 'none';
+                    if (isMobile) {
+                        document.getElementById('mobile-controls').style.display = 'block';
                     }
+                }
+            } else if (otherPlayers[data.victimId]) {
+                otherPlayers[data.victimId].hp = data.victimHp;
+                otherPlayers[data.victimId].x = data.victimX;
+                otherPlayers[data.victimId].y = data.victimY;
+            }
+
+            if (data.shooterId === socket.id) {
+                myPlayer.score = data.shooterScore;
+                document.getElementById('score').innerText = myPlayer.score;
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isMobile && !isDead) {
+                myPlayer.angle = Math.atan2(e.clientY - myPlayer.y, e.clientX - myPlayer.x);
+                socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
+            }
+        });
+
+        window.addEventListener('click', () => {
+            const screensOpen = document.getElementById('device-screen').style.display === 'flex' || 
+                                document.getElementById('lang-screen').style.display === 'flex' || 
+                                document.getElementById('name-screen').style.display === 'flex' || 
+                                document.getElementById('color-screen').style.display === 'flex';
+            if (!isMobile && !isDead && !screensOpen) {
+                fireBullet();
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (!isMobile && !isDead) {
+                let speed = 6;
+                if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') myPlayer.y -= speed;
+                if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') myPlayer.y += speed;
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') myPlayer.x -= speed;
+                if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') myPlayer.x += speed;
+                if (e.key === ' ' || e.key === 'Shift') {
+                    triggerDash();
+                }
+                socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
+            }
+        });
+
+        const joystickBase = document.getElementById('joystick-base');
+        const joystickStick = document.getElementById('joystick-stick');
+        let joystickTouchId = null;
+
+        joystickBase.addEventListener('touchstart', (e) => {
+            if (isDead) return;
+            const touch = e.changedTouches[0];
+            joystickTouchId = touch.identifier;
+            updateJoystick(touch);
+        });
+
+        joystickBase.addEventListener('touchmove', (e) => {
+            if (isDead) return;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joystickTouchId) {
+                    updateJoystick(e.changedTouches[i]);
                 }
             }
         });
 
-        if (bulletHit || b.x < 0 || b.x > 3000 || b.y < 0 || b.y > 3000) {
-            bullets.splice(i, 1);
+        function endJoystick() {
+            joystickTouchId = null;
+            moveVector = { x: 0, y: 0 };
+            joystickStick.style.transform = `translate(0px, 0px)`;
         }
-    }
 
-    io.emit('bulletsUpdate', bullets);
-}, 1000 / 60);
+        joystickBase.addEventListener('touchend', endJoystick);
+        joystickBase.addEventListener('touchcancel', endJoystick);
 
-const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => {
-    console.log(`Server đang chạy tại cổng ${PORT}`);
-});
+        function updateJoystick(touch) {
+            const rect = joystickBase.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            let dx = touch.clientX - centerX;
+            let dy = touch.clientY - centerY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const maxRadius = 40;
+
+            if (distance > maxRadius) {
+                dx = (dx / distance) * maxRadius;
+                dy = (dy / distance) * maxRadius;
+            }
+
+            joystickStick.style.transform = `translate(${dx}px, ${dy}px)`;
+            moveVector = { x: dx / maxRadius, y: dy / maxRadius };
+        }
+
+        document.getElementById('shoot-btn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!isDead) fireBullet();
+        });
+
+        document.getElementById('dash-btn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            triggerDash();
+        });
+
+        function fireBullet() {
+            const bulletData = {
+                x: myPlayer.x + Math.cos(myPlayer.angle) * 20,
+                y: myPlayer.y + Math.sin(myPlayer.angle) * 20,
+                dx: Math.cos(myPlayer.angle) * 12,
+                dy: Math.sin(myPlayer.angle) * 12
+            };
+            socket.emit('shoot', bulletData);
+        }
+
+        function drawGun(x, y, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.fillStyle = '#ccc';
+            ctx.fillRect(0, -4, 20, 8);
+            ctx.restore();
+        }
+
+        function drawHPBar(x, y, hp, name) {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(x - 15, y - 32, 30, 4);
+            ctx.fillStyle = 'green';
+            ctx.fillRect(x - 15, y - 32, (hp / 100) * 30, 4);
+
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(name || 'Player', x, y - 40);
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!isDead) {
+                if (isMobile && (moveVector.x !== 0 || moveVector.y !== 0)) {
+                    let speed = 5;
+                    myPlayer.x += moveVector.x * speed;
+                    myPlayer.y += moveVector.y * speed;
+                    myPlayer.angle = Math.atan2(moveVector.y, moveVector.x);
+                    socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
+                }
+
+                drawGun(myPlayer.x, myPlayer.y, myPlayer.angle);
+                ctx.fillStyle = myPlayer.color;
+                ctx.beginPath();
+                ctx.arc(myPlayer.x, myPlayer.y, 15, 0, Math.PI * 2);
+                ctx.fill();
+                drawHPBar(myPlayer.x, myPlayer.y, myPlayer.hp, myPlayer.name);
+            }
+
+            for (let b of bullets) {
+                ctx.fillStyle = '#ffeb3b';
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            Object.keys(otherPlayers).forEach((id) => {
+                let p = otherPlayers[id];
+                drawGun(p.x, p.y, p.angle || 0);
+                ctx.fillStyle = p.color || '#ff5722';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+                ctx.fill();
+                drawHPBar(p.x, p.y, p.hp !== undefined ? p.hp : 100, p.name);
+            });
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
