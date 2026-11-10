@@ -54,16 +54,25 @@ io.on('connection', (socket) => {
     socket.on('dash', () => {
         if (players[socket.id] && players[socket.id].hp > 0) {
             let p = players[socket.id];
-            let dashSpeed = 60;
-            p.x += Math.cos(p.angle) * dashSpeed;
-            p.y += Math.sin(p.angle) * dashSpeed;
+            let dashCount = 10;
+            let dashStep = 8;
+            
+            let dashInterval = setInterval(() => {
+                if (p.hp > 0 && dashCount > 0) {
+                    p.x += Math.cos(p.angle) * dashStep;
+                    p.y += Math.sin(p.angle) * dashStep;
+                    dashCount--;
 
-            io.emit('playerMoved', {
-                id: socket.id,
-                x: p.x,
-                y: p.y,
-                angle: p.angle
-            });
+                    io.emit('playerMoved', {
+                        id: socket.id,
+                        x: p.x,
+                        y: p.y,
+                        angle: p.angle
+                    });
+                } else {
+                    clearInterval(dashInterval);
+                }
+            }, 10);
         }
     });
 
