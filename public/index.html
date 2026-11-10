@@ -440,12 +440,22 @@
             moveVector = { x: dx / maxRadius, y: dy / maxRadius };
         }
 
-        document.getElementById('shoot-btn').addEventListener('touchstart', (e) => {
+        const shootBtn = document.getElementById('shoot-btn');
+        shootBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!isDead) fireBullet();
+        });
+        shootBtn.addEventListener('mousedown', (e) => {
             e.preventDefault();
             if (!isDead) fireBullet();
         });
 
-        document.getElementById('dash-btn').addEventListener('touchstart', (e) => {
+        const dashBtn = document.getElementById('dash-btn');
+        dashBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            triggerDash();
+        });
+        dashBtn.addEventListener('mousedown', (e) => {
             e.preventDefault();
             triggerDash();
         });
