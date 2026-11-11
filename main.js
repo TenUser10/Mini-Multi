@@ -5,15 +5,15 @@ function createWindow() {
     const win = new BrowserWindow({
         width: 1280,
         height: 720,
+        icon: path.join(__dirname, 'icon.ico'),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true
         },
-        autoHideMenuBar: true, // Ẩn thanh menu cho giống game thật
+        autoHideMenuBar: true,
         title: "Mini-Multi Shooter Game"
     });
 
-    // Trỏ trực tiếp đường dẫn file .exe đến trang web đang chạy online trên Render của 10
     win.loadURL('https://mini-multi.onrender.com');
 }
 

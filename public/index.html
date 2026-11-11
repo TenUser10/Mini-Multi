@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mini-Multi Shooter Game</title>
+    <link rel="icon" type="image/png" href="icon.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body {
@@ -126,6 +127,21 @@
             justify-content: center;
             pointer-events: auto;
         }
+        #dash-btn {
+            position: absolute;
+            bottom: 160px; right: 50px;
+            width: 70px; height: 70px;
+            background: rgba(0, 188, 212, 0.7);
+            border: 2px solid #00bcd4;
+            border-radius: 50%;
+            color: #fff;
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+        }
         canvas { display: block; }
     </style>
 </head>
@@ -185,6 +201,7 @@
             <div id="joystick-stick"></div>
         </div>
         <div id="shoot-btn"><span id="txt-shoot">FIRE</span></div>
+        <div id="dash-btn">DASH</div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -208,6 +225,9 @@
         let isMobile = false;
         let isDead = false;
         let moveVector = { x: 0, y: 0 };
+
+        let lastDashTime = 0;
+        const DASH_COOLDOWN = 5000;
 
         const langData = {
             en: { langTitle: "Choose your language", nameTitle: "What is your name?", namePlaceholder: "Enter your name...", nextBtn: "Next", colorTitle: "Choose your character color", deviceTitle: "What device are you playing on?", phone: "📱 Mobile", pc: "💻 Computer", hp: "HP", score: "Score", mode: "Mode", notSelected: "Not selected", mobileMode: "Mobile", pcMode: "Computer", fire: "FIRE", deadTitle: "YOU DIED", respawn: "RESPAWN" },
@@ -280,6 +300,14 @@
             document.getElementById('gameover-screen').style.display = 'none';
             if (isMobile) {
                 document.getElementById('mobile-controls').style.display = 'block';
+            }
+        }
+
+        function triggerDash() {
+            const now = Date.now();
+            if (now - lastDashTime >= DASH_COOLDOWN && !isDead) {
+                lastDashTime = now;
+                socket.emit('dash');
             }
         }
 
@@ -359,6 +387,9 @@
                 if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') myPlayer.y += speed;
                 if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') myPlayer.x -= speed;
                 if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') myPlayer.x += speed;
+                if (e.key === ' ' || e.key === 'Shift') {
+                    triggerDash();
+                }
                 socket.emit('playerMovement', { x: myPlayer.x, y: myPlayer.y, angle: myPlayer.angle });
             }
         });
@@ -410,9 +441,24 @@
             moveVector = { x: dx / maxRadius, y: dy / maxRadius };
         }
 
-        document.getElementById('shoot-btn').addEventListener('touchstart', (e) => {
+        const shootBtn = document.getElementById('shoot-btn');
+        shootBtn.addEventListener('touchstart', (e) => {
             e.preventDefault();
             if (!isDead) fireBullet();
+        });
+        shootBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            if (!isDead) fireBullet();
+        });
+
+        const dashBtn = document.getElementById('dash-btn');
+        dashBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            triggerDash();
+        });
+        dashBtn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            triggerDash();
         });
 
         function fireBullet() {

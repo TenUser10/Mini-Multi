@@ -12,7 +12,6 @@ let bullets = [];
 io.on('connection', (socket) => {
     console.log(`Người chơi kết nối: ${socket.id}`);
 
-    // Khởi tạo thông tin cơ bản cho player
     players[socket.id] = {
         name: "Player",
         x: Math.random() * 600 + 100,
@@ -25,13 +24,11 @@ io.on('connection', (socket) => {
 
     socket.emit('currentPlayers', players);
 
-    // Lắng nghe sự kiện cập nhật thông tin (Tên và Màu sắc) từ client
     socket.on('updatePlayerInfo', (data) => {
         if (players[socket.id]) {
             if (data.name) players[socket.id].name = data.name;
             if (data.color) players[socket.id].color = data.color;
 
-            // Báo cho các người chơi khác biết thông tin mới của player này
             socket.broadcast.emit('newPlayer', {
                 id: socket.id,
                 player: players[socket.id]
@@ -90,7 +87,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// Game Loop trên Server
 setInterval(() => {
     for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];

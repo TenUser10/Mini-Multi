@@ -1,29 +1,13 @@
 {
   "name": "mini-multi",
   "version": "1.0.0",
-  "description": "Multiplayer shooter game",
-  "main": "main.js",
+  "description": "Mini-Multi Multiplayer Shooter Game",
+  "main": "server.js",
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder --win"
-  },
-  "build": {
-    "appId": "com.minimulti.game",
-    "productName": "Mini-Multi",
-    "directories": {
-      "output": "dist"
-    },
-    "win": {
-      "target": "nsis"
-    },
-    "electronVersion": "28.0.0"
+    "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.7.2"
-  },
-  "devDependencies": {
-    "electron": "^28.0.0",
-    "electron-builder": "^24.9.1"
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
   }
 }
