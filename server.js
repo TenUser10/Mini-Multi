@@ -19,7 +19,7 @@ io.on('connection', (socket) => {
         angle: 0,
         hp: 100,
         score: 0,
-        color: '#4CAF50' // Mặc định
+        color: '#4CAF50'
     };
 
     socket.emit('currentPlayers', players);
@@ -47,6 +47,23 @@ io.on('connection', (socket) => {
                 x: players[socket.id].x,
                 y: players[socket.id].y,
                 angle: players[socket.id].angle
+            });
+        }
+    });
+
+    socket.on('dash', () => {
+        if (players[socket.id] && players[socket.id].hp > 0) {
+            let p = players[socket.id];
+            let dashDistance = 120;
+            
+            p.x += Math.cos(p.angle) * dashDistance;
+            p.y += Math.sin(p.angle) * dashDistance;
+
+            io.emit('playerMoved', {
+                id: socket.id,
+                x: p.x,
+                y: p.y,
+                angle: p.angle
             });
         }
     });
