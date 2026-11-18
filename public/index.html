@@ -212,6 +212,34 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
+        const sfx = {
+            shoot: new Audio('audio/shoot.mp3'),
+            respawn: new Audio('audio/respawn.mp3'),
+            gameOver: new Audio('audio/game-over.mp3')
+        };
+
+        sfx.shoot.volume = 0.7;
+        sfx.respawn.volume = 0.8;
+        sfx.gameOver.volume = 0.8;
+
+        function playSound(name) {
+            const base = sfx[name];
+            if (!base) return;
+            const instance = base.cloneNode();
+            instance.volume = base.volume;
+            instance.play().catch(() => {});
+        }
+
+        function unlockAudio() {
+            Object.values(sfx).forEach((audio) => audio.load());
+            window.removeEventListener('pointerdown', unlockAudio);
+            window.removeEventListener('touchstart', unlockAudio);
+            window.removeEventListener('keydown', unlockAudio);
+        }
+        window.addEventListener('pointerdown', unlockAudio);
+        window.addEventListener('touchstart', unlockAudio);
+        window.addEventListener('keydown', unlockAudio);
+
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -297,6 +325,7 @@
         function respawnPlayer() {
             socket.emit('respawn');
             isDead = false;
+            playSound('respawn');
             document.getElementById('gameover-screen').style.display = 'none';
             if (isMobile) {
                 document.getElementById('mobile-controls').style.display = 'block';
@@ -335,16 +364,23 @@
 
         socket.on('updateStats', (data) => {
             if (data.victimId === socket.id) {
+                const wasDead = isDead;
                 myPlayer.hp = data.victimHp;
                 myPlayer.x = data.victimX;
                 myPlayer.y = data.victimY;
                 document.getElementById('hp').innerText = myPlayer.hp;
                 
                 if (myPlayer.hp <= 0) {
+                    if (!isDead) {
+                        playSound('gameOver');
+                    }
                     isDead = true;
                     document.getElementById('gameover-screen').style.display = 'flex';
                     document.getElementById('mobile-controls').style.display = 'none';
                 } else {
+                    if (wasDead) {
+                        playSound('respawn');
+                    }
                     isDead = false;
                     document.getElementById('gameover-screen').style.display = 'none';
                     if (isMobile) {
@@ -469,6 +505,7 @@
                 dy: Math.sin(myPlayer.angle) * 12
             };
             socket.emit('shoot', bulletData);
+            playSound('shoot');
         }
 
         function drawGun(x, y, angle) {
